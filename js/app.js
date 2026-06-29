@@ -746,11 +746,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="goal-date-target ${isOverdue ? 'badge badge-danger' : ''}" style="border:none; padding:0;">
             📅 Deadline: ${goal.targetDate || 'No limit'}
           </div>
-          ${goal.status !== 'completed' ? `
-            <button class="btn btn-secondary btn-icon" id="complete-goal-btn-${goal.id}" title="Mark Complete" style="width:30px; height:30px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;">
-              ✓
-            </button>
-          ` : ''}
+          <button class="btn btn-secondary btn-icon" id="complete-goal-btn-${goal.id}" title="${goal.status === 'completed' ? 'Reopen Goal' : 'Mark Complete'}" style="width:30px; height:30px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;">
+            ${goal.status === 'completed' ? '↺' : '✓'}
+          </button>
         </div>
       `;
 
@@ -1112,8 +1110,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const goal = appData.goals.find(g => g.id === goalId);
     if (!goal) return;
 
-    goal.status = 'completed';
-    goal.milestones.forEach(m => m.completed = true);
+    if (goal.status === 'completed') {
+      goal.status = 'active';
+    } else {
+      goal.status = 'completed';
+      if (Array.isArray(goal.milestones)) {
+        goal.milestones.forEach(m => m.completed = true);
+      }
+    }
 
     saveAndSync();
     renderGoals();

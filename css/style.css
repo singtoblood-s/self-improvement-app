@@ -1627,34 +1627,59 @@ main {
   .progress-ring-content { text-align: left; flex: 1; min-width: 0; }
 
   /* --- Habits / Goals: single column, compact cards --- */
-  .habits-grid { grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
-  .goals-grid { grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
-  .habit-card, .goal-card { padding: 12px 14px; border-radius: 14px; }
-  .habit-card-title, .goal-card-title { font-size: 1rem; }
+  .habits-grid { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+  .goals-grid { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+  .habit-card, .goal-card { padding: 10px 12px; border-radius: 12px; }
+  .habit-card-title, .goal-card-title { font-size: 0.92rem; line-height: 1.25; }
+  .goal-card-desc { font-size: 0.78rem; line-height: 1.35; }
 
-  .habit-stats-row { gap: 6px; }
-  .habit-stat { padding: 8px 6px; }
-  .habit-stat-val { font-size: 1rem; }
-  .habit-stat-label { font-size: 0.65rem; }
+  .habit-stats-row { gap: 4px; }
+  .habit-stat { padding: 6px 4px; }
+  .habit-stat-val { font-size: 0.9rem; }
+  .habit-stat-label { font-size: 0.6rem; }
 
   /* --- Week tracker: tighter --- */
-  .week-tracker-row { gap: 2px; padding: 2px 0; }
-  .week-day-dot { width: 32px; height: 32px; font-size: 0.8rem; }
-  .week-day-label { font-size: 0.6rem; }
+  .week-tracker-row { gap: 2px; padding: 2px 0; margin-top: 6px; }
+  .week-day-dot { width: 28px; height: 28px; font-size: 0.7rem; }
+  .week-day-label { font-size: 0.55rem; }
 
   /* --- Timer panel: stacked buttons --- */
-  .habit-timer-panel { padding: 10px 12px; }
+  .habit-timer-panel { padding: 8px 10px; margin-top: 8px; }
+  .habit-timer-meta { margin-bottom: 6px; }
+  .habit-timer-label { font-size: 0.65rem; }
+  .habit-timer-time { font-size: 0.78rem; }
   .habit-timer-actions {
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
   }
-  .habit-timer-actions .btn { padding: 6px 10px; font-size: 0.78rem; min-height: 34px; }
+  .habit-timer-actions .btn { padding: 4px 8px; font-size: 0.72rem; min-height: 30px; border-radius: 8px; }
 
-  /* --- Goal card: compact --- */
-  .goal-card-header { gap: 8px; margin-bottom: 8px; }
-  .goal-card-meta { font-size: 0.72rem; gap: 6px; }
-  .goal-card-actions { gap: 6px; }
-  .goal-card-actions .btn { padding: 6px 10px; font-size: 0.75rem; min-height: 32px; }
+  /* --- Goal card: ultra compact --- */
+  .goal-card-header { gap: 6px; margin-bottom: 6px; }
+  .goal-card-meta { font-size: 0.65rem; gap: 4px; }
+  .goal-card-actions { gap: 4px; }
+  .goal-card-actions .btn { padding: 4px 8px; font-size: 0.7rem; min-height: 28px; }
+  .goal-top { gap: 8px; margin-bottom: 8px; }
+  .goal-title-area { gap: 4px; }
+  .goal-progress-section { margin-top: 6px; }
+  .goal-progress-meta { font-size: 0.7rem; margin-bottom: 4px; }
+  .goal-progress-percent { font-size: 0.78rem; }
+  .linked-routines-section { margin-top: 8px; padding-top: 6px; }
+  .linked-routines-title { font-size: 0.7rem; margin-bottom: 4px; }
+  .linked-routine-item { padding: 4px 8px; font-size: 0.72rem; }
+  .goal-milestones-list { margin-top: 6px; gap: 4px; }
+  .milestone-item { padding: 6px 8px; font-size: 0.78rem; }
+  .goal-dates { margin-top: 8px; padding-top: 8px; font-size: 0.72rem; gap: 6px; }
+  .goal-date-target { font-size: 0.72rem; }
+
+  /* --- Edit/Delete buttons compact --- */
+  .habit-card .edit-btn,
+  .habit-card .delete-btn,
+  .goal-card .edit-btn,
+  .goal-card .delete-btn { padding: 4px 8px; font-size: 0.7rem; min-height: 28px; border-radius: 8px; }
+
+  /* --- Badges compact --- */
+  .badge { font-size: 0.6rem; padding: 2px 6px; }
 
   /* --- Journal layout: stacked, no sidebar collapse --- */
   .journal-layout { display: flex; flex-direction: column; gap: 10px; }
