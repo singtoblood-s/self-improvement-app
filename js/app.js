@@ -566,7 +566,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const timerStartBtn = card.querySelector('.timer-start-btn');
       if (timerStartBtn) {
-        timerStartBtn.addEventListener('click', () => startHabitTimer(habit.id));
+        timerStartBtn.addEventListener('click', () => {
+          const remaining = Number(habit.timerRemainingSeconds);
+          if (!habit.timerEndsAt && remaining > 0) {
+            startHabitTimer(habit.id, { fromRemaining: true });
+          } else {
+            startHabitTimer(habit.id);
+          }
+        });
+      }
+
+      const timerPauseBtn = card.querySelector('.timer-pause-btn');
+      if (timerPauseBtn) {
+        timerPauseBtn.addEventListener('click', () => {
+          if (habit.timerPaused) {
+            startHabitTimer(habit.id, { fromRemaining: true });
+          } else {
+            pauseHabitTimer(habit.id);
+          }
+        });
+      }
+
+      const timerStopBtn = card.querySelector('.timer-stop-btn');
+      if (timerStopBtn) {
+        timerStopBtn.addEventListener('click', () => stopHabitTimer(habit.id));
       }
 
       const timerResetBtn = card.querySelector('.timer-reset-btn');
@@ -867,12 +890,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeSection === 'dashboard-section') renderDashboard();
   }
 
+  function updateHabitTimerDisplay() {
+    if (!Array.isArray(appData.habits)) return;
+    appData.habits.forEach(habit => {
+      if (!isTimedHabit(habit)) return;
+      const node = document.querySelector(`[data-timer-habit-id="${habit.id}"]`);
+      if (!node) return;
+      const completedToday = !!(habit.logs && habit.logs[getTodayStr()]);
+      if (habit.timerEndsAt) {
+        const remaining = getRunningTimerRemainingSeconds(habit);
+        const isPaused = !!habit.timerPaused;
+        node.textContent = isPaused
+          ? `Paused · ${formatTimer(remaining)} left`
+          : `Running · ${formatTimer(remaining)} left`;
+      } else if (habit.timerRemainingSeconds != null) {
+        node.textContent = `Paused · ${formatTimer(habit.timerRemainingSeconds)} left`;
+      } else if (completedToday) {
+        node.textContent = 'Completed today';
+      } else {
+        const durationMinutes = getHabitDurationMinutes(habit);
+        node.textContent = `${Number(durationMinutes.toFixed(2))} min focus timer`;
+      }
+    });
+  }
+
   function completeTimedHabit(habit, shouldNotify = true) {
     if (!habit.logs) habit.logs = {};
     habit.logs[getTodayStr()] = true;
     delete habit.timerStartedAt;
     delete habit.timerEndsAt;
     delete habit.timerDurationSeconds;
+    delete habit.timerPaused;
+    delete habit.timerRemainingSeconds;
     habit.updatedAt = new Date().toISOString();
     saveAndSync();
     updateAllStreaks();
@@ -883,12 +932,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function checkHabitTimers() {
     let changed = false;
     appData.habits.forEach(habit => {
-      if (habit.timerEndsAt && Date.now() >= new Date(habit.timerEndsAt).getTime()) {
+      if (habit.timerEndsAt && !habit.timerPaused && Date.now() >= new Date(habit.timerEndsAt).getTime()) {
         completeTimedHabit(habit, true);
         changed = true;
       }
     });
     if (changed) refreshTimerViews();
+    else updateHabitTimerDisplay();
   }
 
   function setupHabitTimerRuntime() {
@@ -901,17 +951,51 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('focus', checkHabitTimers);
   }
 
-  async function startHabitTimer(habitId) {
+  async function startHabitTimer(habitId, { fromRemaining = false } = {}) {
     const habit = appData.habits.find(h => h.id === habitId);
     if (!habit) return;
     await requestTimerNotificationPermission();
-    const durationSeconds = Math.max(1, Math.round(getHabitDurationMinutes(habit) * 60));
-    const now = Date.now();
     habit.habitType = 'timer';
     habit.timerMinutes = getHabitDurationMinutes(habit);
+    let durationSeconds;
+    if (fromRemaining && Number(habit.timerRemainingSeconds) > 0) {
+      durationSeconds = Math.max(1, Math.round(habit.timerRemainingSeconds));
+    } else {
+      durationSeconds = Math.max(1, Math.round(getHabitDurationMinutes(habit) * 60));
+    }
+    const now = Date.now();
     habit.timerStartedAt = new Date(now).toISOString();
     habit.timerEndsAt = new Date(now + durationSeconds * 1000).toISOString();
     habit.timerDurationSeconds = durationSeconds;
+    delete habit.timerPaused;
+    delete habit.timerRemainingSeconds;
+    habit.updatedAt = new Date().toISOString();
+    saveAndSync();
+    renderHabits();
+  }
+
+  function pauseHabitTimer(habitId) {
+    const habit = appData.habits.find(h => h.id === habitId);
+    if (!habit || !habit.timerEndsAt || habit.timerPaused) return;
+    const remaining = getRunningTimerRemainingSeconds(habit);
+    habit.timerRemainingSeconds = remaining;
+    habit.timerPaused = true;
+    delete habit.timerStartedAt;
+    delete habit.timerEndsAt;
+    habit.updatedAt = new Date().toISOString();
+    saveAndSync();
+    renderHabits();
+  }
+
+  function stopHabitTimer(habitId) {
+    const habit = appData.habits.find(h => h.id === habitId);
+    if (!habit) return;
+    delete habit.timerStartedAt;
+    delete habit.timerEndsAt;
+    delete habit.timerDurationSeconds;
+    delete habit.timerPaused;
+    delete habit.timerRemainingSeconds;
+    habit.updatedAt = new Date().toISOString();
     saveAndSync();
     renderHabits();
   }
@@ -922,6 +1006,8 @@ document.addEventListener('DOMContentLoaded', () => {
     delete habit.timerStartedAt;
     delete habit.timerEndsAt;
     delete habit.timerDurationSeconds;
+    delete habit.timerPaused;
+    delete habit.timerRemainingSeconds;
     habit.updatedAt = new Date().toISOString();
     saveAndSync();
     renderHabits();
@@ -929,24 +1015,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function buildHabitTimerHtml(habit, today) {
     if (!isTimedHabit(habit)) return '';
-    const isRunning = !!habit.timerEndsAt;
     const completedToday = !!(habit.logs && habit.logs[today]);
-    const remaining = getRunningTimerRemainingSeconds(habit);
+    const isRunning = !!habit.timerEndsAt;
+    const isPaused = !!habit.timerPaused;
+    const isHeld = isPaused || (habit.timerRemainingSeconds != null && !isRunning);
+    const remaining = isRunning
+      ? getRunningTimerRemainingSeconds(habit)
+      : (Number(habit.timerRemainingSeconds) || 0);
     const durationMinutes = getHabitDurationMinutes(habit);
     const statusText = isRunning
-      ? `Running · ${formatTimer(remaining)} left`
-      : completedToday
-        ? 'Completed today'
-        : `${Number(durationMinutes.toFixed(2))} min focus timer`;
+      ? (isPaused ? `Paused · ${formatTimer(remaining)} left` : `Running · ${formatTimer(remaining)} left`)
+      : isHeld
+        ? `Paused · ${formatTimer(remaining)} left`
+        : completedToday
+          ? 'Completed today'
+          : `${Number(durationMinutes.toFixed(2))} min focus timer`;
+    const startLabel = isRunning
+      ? (isPaused ? 'Resume' : 'Running…')
+      : isHeld
+        ? 'Resume'
+        : completedToday
+          ? 'Start again'
+          : 'Start timer';
     return `
-      <div class="habit-timer-panel ${isRunning ? 'running' : ''} ${completedToday ? 'completed' : ''}">
+      <div class="habit-timer-panel ${isRunning ? (isPaused ? 'paused' : 'running') : (isHeld ? 'paused' : '')} ${completedToday ? 'completed' : ''}">
         <div class="habit-timer-meta">
           <span class="habit-timer-label">Timer</span>
           <span class="habit-timer-time" data-timer-habit-id="${habit.id}">${statusText}</span>
         </div>
         <div class="habit-timer-actions">
-          <button class="btn btn-primary timer-start-btn" data-id="${habit.id}" ${isRunning ? 'disabled' : ''}>${completedToday ? 'Start again' : 'Start timer'}</button>
-          ${isRunning ? `<button class="btn btn-secondary timer-reset-btn" data-id="${habit.id}">Stop</button>` : ''}
+          <button class="btn btn-primary timer-start-btn" data-id="${habit.id}">${startLabel}</button>
+          ${isRunning || isHeld ? `<button class="btn btn-secondary timer-pause-btn" data-id="${habit.id}">${isRunning && !isPaused ? 'Pause' : 'Resume'}</button>` : ''}
+          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-stop-btn" data-id="${habit.id}">Stop</button>` : ''}
+          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-reset-btn" data-id="${habit.id}">Reset</button>` : ''}
         </div>
       </div>
     `;
