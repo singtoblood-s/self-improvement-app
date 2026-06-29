@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedJournalDate = getTodayStr();
 
   // --- INIT ---
-  function init() {
+  async function init() {
     appData = window.AscendStorage.load();
     setupRouting();
     setupEventListeners();
@@ -26,11 +26,76 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Render current view
     navigate('dashboard');
+
+    // Auto-pull from Gist on startup if credentials exist and Auto-Sync is enabled
+    if (appData.settings.githubToken && appData.settings.gistId && appData.settings.autoSync) {
+      const syncStatusEl = document.getElementById('sync-status-msg');
+      if (syncStatusEl) {
+        syncStatusEl.className = 'sync-status';
+        syncStatusEl.textContent = 'Auto-syncing with GitHub...';
+      }
+      
+      const result = await window.AscendStorage.pullFromGist(
+        appData.settings.githubToken, 
+        appData.settings.gistId
+      );
+      
+      if (result.success) {
+        appData = result.data;
+        updateAllStreaks();
+        
+        // Refresh the current active page to load the fresh data
+        const activeItem = document.querySelector('.nav-item.active');
+        if (activeItem) {
+          const sectionId = activeItem.getAttribute('data-section');
+          navigate(sectionId);
+        }
+        
+        if (syncStatusEl) {
+          syncStatusEl.className = 'sync-status success';
+          syncStatusEl.textContent = `✓ Synced with GitHub on load!`;
+        }
+      } else {
+        if (syncStatusEl) {
+          syncStatusEl.className = 'sync-status error';
+          syncStatusEl.textContent = `✗ Auto-pull failed: ${result.error}`;
+        }
+      }
+    }
+  }
+
+  // --- SAVE & AUTO SYNC HELPER ---
+  function saveAndSync() {
+    window.AscendStorage.save(appData);
+    
+    if (appData.settings.githubToken && appData.settings.gistId && appData.settings.autoSync) {
+      const statusEl = document.getElementById('sync-status-msg');
+      if (statusEl) {
+        statusEl.className = 'sync-status';
+        statusEl.textContent = 'Syncing...';
+      }
+      
+      // Perform background sync without blocking UI
+      window.AscendStorage.syncWithGist(appData).then(res => {
+        if (res.success) {
+          console.log('Background Gist sync completed.');
+          if (statusEl) {
+            statusEl.className = 'sync-status success';
+            statusEl.textContent = `✓ Auto-synced at ${new Date().toLocaleTimeString()}`;
+          }
+        } else {
+          console.warn('Background Gist sync failed:', res.error);
+          if (statusEl) {
+            statusEl.className = 'sync-status error';
+            statusEl.textContent = `✗ Auto-sync failed: ${res.error}`;
+          }
+        }
+      });
+    }
   }
 
   // --- DATE HELPERS ---
   function getTodayStr() {
-    // Return local date string YYYY-MM-DD
     const d = new Date();
     const offset = d.getTimezoneOffset();
     const localDate = new Date(d.getTime() - (offset * 60 * 1000));
@@ -51,10 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getCurrentWeekDates() {
     const today = new Date();
-    const day = today.getDay(); // 0 is Sun, 1 is Mon...
-    // Adjust Sunday to be 7, Monday to be 1
+    const day = today.getDay();
     const dayAdjusted = day === 0 ? 7 : day;
-    const diff = today.getDate() - dayAdjusted + 1; // start from Monday
+    const diff = today.getDate() - dayAdjusted + 1;
     const monday = new Date(today.setDate(diff));
     
     const weekDates = [];
@@ -79,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function navigate(sectionId) {
-    // Update active nav item
     document.querySelectorAll('.nav-item').forEach(item => {
       if (item.getAttribute('data-section') === sectionId) {
         item.classList.add('active');
@@ -88,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Toggle active section
     document.querySelectorAll('.page-section').forEach(section => {
       if (section.id === `${sectionId}-section`) {
         section.classList.add('active');
@@ -97,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Render logic per view
     if (sectionId === 'dashboard') {
       renderDashboard();
     } else if (sectionId === 'habits') {
@@ -118,19 +179,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let streak = 0;
     let checkDate = todayStr;
     
-    // If completed today, count it
     if (logs[checkDate]) {
       streak++;
     } else {
-      // If not completed today, check if yesterday was completed to maintain streak
       checkDate = getPreviousDateStr(todayStr);
       if (!logs[checkDate]) {
-        return 0; // Streak broken
+        return 0;
       }
       streak++;
     }
 
-    // Keep checking backwards
     while (true) {
       checkDate = getPreviousDateStr(checkDate);
       if (logs[checkDate]) {
@@ -151,24 +209,21 @@ document.addEventListener('DOMContentLoaded', () => {
         habit.maxStreak = habit.streak;
       }
     });
-    window.AscendStorage.save(appData);
+    saveAndSync();
   }
 
-  // Check if daily reset is needed (tab was left open)
   let lastCheckedDate = getTodayStr();
   function checkDailyReset() {
     const today = getTodayStr();
     if (today !== lastCheckedDate) {
       lastCheckedDate = today;
       updateAllStreaks();
-      // Auto save journal log template if none exists
       ensureTodayJournalLog();
       if (document.getElementById('dashboard-section').classList.contains('active')) {
         renderDashboard();
       }
     }
   }
-  // Check reset every 30 seconds
   setInterval(checkDailyReset, 30000);
 
   function ensureTodayJournalLog() {
@@ -180,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mood: '',
         content: ''
       });
-      window.AscendStorage.save(appData);
+      saveAndSync();
     }
   }
 
@@ -190,16 +245,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDashboard() {
     const today = getTodayStr();
     
-    // Update user profile info in sidebar
     document.querySelector('.profile-name').textContent = appData.profile.name || 'Achiever';
     document.querySelector('.profile-title').textContent = appData.profile.title || 'Growth Mode';
     document.querySelector('.avatar').textContent = (appData.profile.name || 'U').substring(0, 2).toUpperCase();
     
-    // Update Greeting & Date
     document.getElementById('dash-date').textContent = formatDateFriendly(today);
     document.getElementById('user-greeting').textContent = `Keep going, ${appData.profile.name || 'Achiever'}!`;
 
-    // Metrics calculation
     const totalHabits = appData.habits.length;
     let completedHabits = 0;
     appData.habits.forEach(h => {
@@ -207,22 +259,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const completionRate = totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0;
-    
-    // Active Goals
     const activeGoals = appData.goals.filter(g => g.status === 'active').length;
 
-    // Highest Streak
     let highestStreak = 0;
     appData.habits.forEach(h => {
       if (h.streak > highestStreak) highestStreak = h.streak;
     });
 
-    // Update metric numbers
     document.getElementById('metric-habits-rate').textContent = `${completionRate}%`;
     document.getElementById('metric-goals-active').textContent = activeGoals;
     document.getElementById('metric-highest-streak').textContent = `${highestStreak} days`;
 
-    // Render SVG Progress Ring
     const circle = document.getElementById('dash-progress-circle');
     if (circle) {
       const radius = 60;
@@ -233,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dash-progress-text').textContent = `${completionRate}%`;
     }
 
-    // Render Quick Habit Checklist
     const quickListContainer = document.getElementById('quick-habits-list');
     quickListContainer.innerHTML = '';
 
@@ -262,7 +308,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="badge ${isCompleted ? 'badge-success' : 'badge-primary'}">${habit.streak}d streak</span>
       `;
 
-      // Handle quick toggle
       div.querySelector('.checkbox-custom').addEventListener('click', () => {
         toggleHabitCompletion(habit.id, today);
       });
@@ -270,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
       quickListContainer.appendChild(div);
     });
 
-    // Render Quick Mood Selector
     renderQuickMoodPicker();
   }
 
@@ -293,17 +337,16 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.remove('active');
       }
 
-      // Add click handler
       btn.onclick = () => {
         moodBtns.forEach(b => b.classList.remove('active'));
         if (todayJournal) {
           if (todayJournal.mood === moodVal) {
-            todayJournal.mood = ''; // Toggle off
+            todayJournal.mood = '';
           } else {
             todayJournal.mood = moodVal;
             btn.classList.add('active');
           }
-          window.AscendStorage.save(appData);
+          saveAndSync();
           updateAllStreaks();
           renderDashboard();
         }
@@ -336,10 +379,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'card habit-card';
       
-      // Calculate completion %
       const totalLogged = Object.keys(habit.logs || {}).filter(k => habit.logs[k]).length;
       
-      // Generate week dots
       let weekDotsHtml = '';
       weekDates.forEach(date => {
         const isCompleted = habit.logs && habit.logs[date];
@@ -397,7 +438,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      // Event listeners for week dots
       card.querySelectorAll('.week-day-dot').forEach(dot => {
         const d = dot.getAttribute('data-date');
         if (d <= today) {
@@ -407,7 +447,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // Event listener for delete
       card.querySelector('.delete-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this habit? All log history will be deleted.')) {
           deleteHabit(habit.id);
@@ -440,7 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'card goal-card';
       
-      // Calculate progress
       const totalMilestones = goal.milestones.length;
       const completedMilestones = goal.milestones.filter(m => m.completed).length;
       
@@ -451,11 +489,9 @@ document.addEventListener('DOMContentLoaded', () => {
         progressPercent = 100;
       }
 
-      // Check if goal deadline is overdue
       const today = getTodayStr();
       const isOverdue = goal.targetDate < today && goal.status !== 'completed';
 
-      // Milestones html list
       let milestonesHtml = '';
       goal.milestones.forEach(m => {
         milestonesHtml += `
@@ -509,7 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      // Event listener for milestones checkbox
       card.querySelectorAll('.milestone-item').forEach(el => {
         el.addEventListener('click', () => {
           const mId = el.getAttribute('data-milestone-id');
@@ -517,7 +552,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      // Event listener for complete entire goal button
       const completeBtn = card.querySelector(`#complete-goal-btn-${goal.id}`);
       if (completeBtn) {
         completeBtn.addEventListener('click', () => {
@@ -525,7 +559,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Event listener for delete goal
       card.querySelector('.delete-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this goal and its milestones?')) {
           deleteGoal(goal.id);
@@ -541,7 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const listContainer = document.getElementById('journal-history-list');
     listContainer.innerHTML = '';
 
-    // Sort entries newest first
     const sortedEntries = [...appData.journal].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     sortedEntries.forEach(entry => {
@@ -575,7 +607,6 @@ document.addEventListener('DOMContentLoaded', () => {
       listContainer.appendChild(item);
     });
 
-    // Populate active editor card
     let activeEntry = appData.journal.find(j => j.date === selectedJournalDate);
     if (!activeEntry) {
       activeEntry = { date: selectedJournalDate, mood: '', content: '' };
@@ -585,7 +616,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const textarea = document.getElementById('journal-editor-textarea');
     textarea.value = activeEntry.content || '';
 
-    // Setup mood selector buttons in editor
     const editorMoodBtns = document.querySelectorAll('.editor-mood-selector .mood-btn');
     editorMoodBtns.forEach(btn => {
       const mVal = btn.getAttribute('data-mood');
@@ -604,12 +634,10 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.classList.add('active');
         }
         
-        // Auto-save entry state
         saveCurrentJournalState(activeEntry);
       };
     });
 
-    // Handle typing auto-save
     textarea.oninput = () => {
       activeEntry.content = textarea.value;
       saveCurrentJournalState(activeEntry);
@@ -623,10 +651,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       appData.journal.push(activeEntry);
     }
-    window.AscendStorage.save(appData);
+    saveAndSync();
     
-    // Partially update historical preview card text on the sidebar
-    // to avoid full re-render flickering
     const activeItem = document.querySelector('.journal-history-item.active .journal-history-preview');
     if (activeItem) {
       const text = activeEntry.content;
@@ -646,18 +672,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- ACTIONS (MUTATORS) ---
 
-  // Toggling habits completion
   function toggleHabitCompletion(habitId, dateStr) {
     const habit = appData.habits.find(h => h.id === habitId);
     if (!habit) return;
 
     if (!habit.logs) habit.logs = {};
-    
-    // Toggle completion log
     habit.logs[dateStr] = !habit.logs[dateStr];
     
-    // Save, update streaks, and re-render
-    window.AscendStorage.save(appData);
+    saveAndSync();
     updateAllStreaks();
 
     const activeSection = document.querySelector('.page-section.active').id;
@@ -668,7 +690,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Toggling goal milestones
   function toggleMilestone(goalId, milestoneId) {
     const goal = appData.goals.find(g => g.id === goalId);
     if (!goal) return;
@@ -678,15 +699,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     milestone.completed = !milestone.completed;
 
-    // If all milestones completed, ask to mark goal as complete
     const allCompleted = goal.milestones.every(m => m.completed);
     if (allCompleted && goal.status !== 'completed') {
       goal.status = 'completed';
     } else if (!allCompleted && goal.status === 'completed') {
-      goal.status = 'active'; // revert back
+      goal.status = 'active';
     }
 
-    window.AscendStorage.save(appData);
+    saveAndSync();
     renderGoals();
   }
 
@@ -695,22 +715,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!goal) return;
 
     goal.status = 'completed';
-    // Complete all milestones
     goal.milestones.forEach(m => m.completed = true);
 
-    window.AscendStorage.save(appData);
+    saveAndSync();
     renderGoals();
   }
 
   function deleteHabit(habitId) {
     appData.habits = appData.habits.filter(h => h.id !== habitId);
-    window.AscendStorage.save(appData);
+    saveAndSync();
     renderHabits();
   }
 
+  // Delete goal
   function deleteGoal(goalId) {
     appData.goals = appData.goals.filter(g => g.id !== goalId);
-    window.AscendStorage.save(appData);
+    saveAndSync();
     renderGoals();
   }
 
@@ -731,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setupEventListeners() {
-    // Habits Actions
     const addHabitBtn = document.getElementById('add-habit-btn');
     if (addHabitBtn) {
       addHabitBtn.addEventListener('click', () => openModal('habit-modal'));
@@ -757,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         appData.habits.push(newHabit);
-        window.AscendStorage.save(appData);
+        saveAndSync();
         updateAllStreaks();
         
         habitForm.reset();
@@ -766,12 +785,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Goals Actions
     const addGoalBtn = document.getElementById('add-goal-btn');
     if (addGoalBtn) {
       addGoalBtn.addEventListener('click', () => {
         openModal('goal-modal');
-        // Clear dynamically added milestones inputs
         const container = document.getElementById('milestone-inputs-container');
         container.innerHTML = `
           <input type="text" class="form-control milestone-input-field" placeholder="Milestone 1 title" style="margin-bottom:8px;">
@@ -804,7 +821,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!title) return;
 
-        // Gather milestones
         const milestoneInputs = document.querySelectorAll('.milestone-input-field');
         const milestones = [];
         milestoneInputs.forEach((input, index) => {
@@ -829,7 +845,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         appData.goals.push(newGoal);
-        window.AscendStorage.save(appData);
+        saveAndSync();
         
         goalForm.reset();
         closeModal('goal-modal');
@@ -837,7 +853,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Modal Close Triggers
     document.querySelectorAll('.modal-close').forEach(btn => {
       btn.addEventListener('click', () => {
         closeModal('habit-modal');
@@ -845,7 +860,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Profile Settings Form
     const profileForm = document.getElementById('profile-form');
     if (profileForm) {
       profileForm.addEventListener('submit', (e) => {
@@ -853,15 +867,12 @@ document.addEventListener('DOMContentLoaded', () => {
         appData.profile.name = document.getElementById('profile-name-input').value.trim() || 'Achiever';
         appData.profile.title = document.getElementById('profile-title-input').value.trim() || 'Growth';
         
-        window.AscendStorage.save(appData);
+        saveAndSync();
         alert('Profile saved successfully!');
-        
-        // Render to apply profile changes in UI sidebar
         renderDashboard();
       });
     }
 
-    // JSON Import/Export Actions
     const exportBtn = document.getElementById('export-backup-btn');
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
@@ -891,7 +902,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // GitHub Gist Settings Form
     const syncForm = document.getElementById('sync-form');
     if (syncForm) {
       syncForm.addEventListener('submit', async (e) => {
@@ -900,12 +910,11 @@ document.addEventListener('DOMContentLoaded', () => {
         appData.settings.gistId = document.getElementById('gist-id-input').value.trim();
         appData.settings.autoSync = document.getElementById('auto-sync-checkbox').checked;
 
-        window.AscendStorage.save(appData);
+        saveAndSync();
         alert('Sync settings saved.');
       });
     }
 
-    // Sync Now Trigger
     const syncNowBtn = document.getElementById('sync-now-btn');
     const syncStatusEl = document.getElementById('sync-status-msg');
 
@@ -931,7 +940,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Pull Now Trigger (Import from Gist)
     const pullNowBtn = document.getElementById('pull-now-btn');
     if (pullNowBtn) {
       pullNowBtn.addEventListener('click', async () => {
@@ -971,6 +979,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('auto-sync-checkbox').checked = appData.settings.autoSync || false;
   }
 
-  // Run app
   init();
 });
