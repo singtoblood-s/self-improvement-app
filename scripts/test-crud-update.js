@@ -22,6 +22,7 @@ const assert = require('assert');
   await page.waitForTimeout(150);
   assert.strictEqual(await page.locator('.habit-card-title', { hasText: 'CRUD Habit' }).count(), 1, 'habit create failed');
 
+  assert.match(await page.locator('.habit-card:has-text("CRUD Habit") .edit-btn').innerText(), /Edit/, 'habit edit button should be visibly labeled');
   await page.click('.habit-card:has-text("CRUD Habit") .edit-btn');
   await page.fill('#habit-name-input', 'CRUD Habit Edited');
   await page.fill('#habit-category-input', 'Edited');
@@ -43,6 +44,7 @@ const assert = require('assert');
   await page.waitForTimeout(150);
   assert.strictEqual(await page.locator('.goal-card-title', { hasText: 'CRUD Goal' }).count(), 1, 'goal create failed');
 
+  assert.match(await page.locator('.goal-card:has-text("CRUD Goal") .edit-btn').innerText(), /Edit/, 'goal edit button should be visibly labeled');
   await page.click('.goal-card:has-text("CRUD Goal") .edit-btn');
   await page.fill('#goal-title-input', 'CRUD Goal Edited');
   await page.fill('#goal-desc-input', 'Edited desc');

@@ -480,8 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="habit-card-title">${habit.name}</span>
           </div>
           <div class="habit-actions">
-            <button class="action-icon-btn edit-btn" title="Edit Habit" data-id="${habit.id}">
-              ✎
+            <button class="btn btn-secondary edit-btn" title="Edit Habit" data-id="${habit.id}">
+              Edit
             </button>
             <button class="action-icon-btn delete-btn" title="Delete Habit" data-id="${habit.id}">
               🗑
@@ -595,8 +595,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="goal-card-desc">${goal.description || 'No description provided.'}</span>
           </div>
           <div class="goal-actions">
-            <button class="action-icon-btn edit-btn" title="Edit Goal" data-id="${goal.id}">
-              ✎
+            <button class="btn btn-secondary edit-btn" title="Edit Goal" data-id="${goal.id}">
+              Edit
             </button>
             <button class="action-icon-btn delete-btn" title="Delete Goal" data-id="${goal.id}">
               🗑

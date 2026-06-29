@@ -813,6 +813,15 @@ textarea.form-control {
 .goal-actions {
   display: flex;
   gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.edit-btn {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  border-radius: 999px;
 }
 
 .action-icon-btn {
