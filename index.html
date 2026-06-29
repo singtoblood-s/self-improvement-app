@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ascend - Self Improvement & Habit Tracker</title>
-  <!-- Tailwind CSS is avoided per guidelines, using Vanilla CSS -->
+  <!-- Firebase SDK Compatibility Version (CDNs) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  
   <link rel="stylesheet" href="css/style.css">
-  <!-- Lucide Icons for clean look -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.1.0/font/lucide.css">
-  <!-- Chart.js CDN for Analytics -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -61,11 +63,11 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="profile-card">
-          <div class="avatar">U</div>
+        <div class="profile-card" id="sidebar-profile-card" style="cursor: pointer;">
+          <div class="avatar" id="sidebar-avatar">G</div>
           <div class="profile-info">
-            <span class="profile-name">User</span>
-            <span class="profile-title">Self Improvement</span>
+            <span class="profile-name" id="sidebar-name">Guest Mode</span>
+            <span class="profile-title" id="sidebar-title">Tap to Sync</span>
           </div>
         </div>
       </div>
@@ -277,7 +279,7 @@
         <div class="header-container">
           <div>
             <h1>App Settings</h1>
-            <p class="subtitle">Manage profiles, data backups, and GitHub sync</p>
+            <p class="subtitle">Manage profiles, data backups, and Firebase sync</p>
           </div>
         </div>
 
@@ -300,6 +302,45 @@
             </form>
           </div>
 
+          <!-- Firebase Cloud Connection -->
+          <div class="card settings-card">
+            <span class="settings-section-title">Firebase Cloud Connection</span>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
+              Connect your own Firebase project to enable secure, real-time sync across devices. Paste the configuration object snippet from your Firebase console.
+            </p>
+            <form id="firebase-config-form">
+              <div class="form-group">
+                <label for="firebase-config-input">Firebase Config JSON Object</label>
+                <textarea class="form-control" id="firebase-config-input" style="font-family: monospace; min-height: 120px;" placeholder='{&#10;  "apiKey": "AIzaSy...",&#10;  "authDomain": "...",&#10;  "projectId": "..."&#10;}'></textarea>
+              </div>
+              <div style="display:flex; gap:12px; align-items:center;">
+                <button type="submit" class="btn btn-secondary">Save Config & Reload</button>
+                <button type="button" class="btn btn-danger" id="clear-firebase-btn">Disconnect Firebase</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Firebase Cloud Sync Account Status -->
+          <div class="card settings-card" id="firebase-auth-card" style="display:none;">
+            <span class="settings-section-title">Account Cloud Sync</span>
+            <div id="auth-logged-out-state">
+              <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
+                You are currently in <strong>Guest Mode</strong> (saving data locally on this browser). Sign up or Log in to sync your habits, goals, and journal records to your private account.
+              </p>
+              <button class="btn btn-primary" id="open-auth-modal-btn">Sign In / Register</button>
+            </div>
+            <div id="auth-logged-in-state" style="display:none;">
+              <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
+                Logged in as: <strong id="logged-in-email">user@example.com</strong>
+              </p>
+              <div style="display:flex; gap:12px; align-items:center;">
+                <button class="btn btn-primary" id="sync-firestore-now-btn">Sync Data Now</button>
+                <button class="btn btn-secondary" id="logout-btn">Log Out</button>
+              </div>
+            </div>
+            <div id="firestore-sync-status" class="sync-status"></div>
+          </div>
+
           <!-- Local Backup & Restore -->
           <div class="card settings-card">
             <span class="settings-section-title">Local Database Backups</span>
@@ -318,35 +359,6 @@
                 <input type="file" id="import-file-input" accept=".json" style="display:none;">
               </div>
             </div>
-          </div>
-
-          <!-- GitHub Gist Cloud Sync -->
-          <div class="card settings-card">
-            <span class="settings-section-title">GitHub Gist Cloud Sync (Optional)</span>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
-              Provide a GitHub Personal Access Token to save and sync data to a private Gist. This lets you access your data on multiple devices or make secure cloud copies.
-            </p>
-            <form id="sync-form">
-              <div class="form-group">
-                <label for="github-token-input">GitHub Personal Access Token (classic, with 'gist' scope)</label>
-                <input type="password" class="form-control" id="github-token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
-              </div>
-              <div class="form-group">
-                <label for="gist-id-input">Gist ID (leave blank to create a new one automatically)</label>
-                <input type="text" class="form-control" id="gist-id-input" placeholder="e.g. 5d5a7114674fc5c2ef40b...">
-              </div>
-              <div class="form-group" style="display:flex; align-items:center; gap:8px;">
-                <input type="checkbox" id="auto-sync-checkbox" style="width:16px; height:16px; cursor:pointer;">
-                <label for="auto-sync-checkbox" style="margin-bottom:0; cursor:pointer;">Enable Auto-Sync (saves to Gist automatically on changes)</label>
-              </div>
-
-              <div style="display:flex; gap:12px; align-items:center; margin-top:20px;">
-                <button type="submit" class="btn btn-secondary">Save Sync Settings</button>
-                <button type="button" class="btn btn-primary" id="sync-now-btn">Sync Now</button>
-                <button type="button" class="btn btn-secondary" id="pull-now-btn">Pull Data</button>
-              </div>
-            </form>
-            <div id="sync-status-msg" class="sync-status"></div>
           </div>
         </div>
       </section>
@@ -423,6 +435,37 @@
         <div style="display:flex; justify-content: flex-end; gap:12px; margin-top:28px;">
           <button type="button" class="btn btn-secondary modal-close">Cancel</button>
           <button type="submit" class="btn btn-primary">Create Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- C. Auth Modal (Sign In / Sign Up) -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="card modal-container" style="max-width: 420px;">
+      <div class="modal-header">
+        <span class="modal-title" id="auth-modal-title">Sign In to Ascend</span>
+        <button class="modal-close" onclick="document.getElementById('auth-modal').classList.remove('active')">&times;</button>
+      </div>
+      <form id="auth-form">
+        <div class="form-group">
+          <label for="auth-email-input">Email Address</label>
+          <input type="email" class="form-control" id="auth-email-input" required placeholder="name@example.com">
+        </div>
+        <div class="form-group">
+          <label for="auth-password-input">Password</label>
+          <input type="password" class="form-control" id="auth-password-input" required placeholder="••••••••" minlength="6">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <span id="auth-toggle-msg" style="font-size: 0.85rem; color: var(--text-secondary);">
+            Don't have an account? <a href="#" id="auth-toggle-link" style="color: var(--primary); font-weight:600; text-decoration:none;">Register here</a>
+          </span>
+        </div>
+
+        <div style="display:flex; justify-content: flex-end; gap:12px;">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
         </div>
       </form>
     </div>

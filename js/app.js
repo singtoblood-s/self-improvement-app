@@ -1,4 +1,4 @@
-// Ascend Application Controller
+// Ascend Application Controller (Firebase Edition)
 document.addEventListener('DOMContentLoaded', () => {
   // --- STATE ---
   let appData = {
@@ -6,91 +6,149 @@ document.addEventListener('DOMContentLoaded', () => {
     habits: [],
     goals: [],
     journal: [],
-    settings: { githubToken: '', gistId: '', autoSync: false }
+    settings: { firebaseConfigStr: '', autoSync: true, lastSynced: '' }
   };
 
   // Current active journal entry date
   let selectedJournalDate = getTodayStr();
+  
+  // Auth Modal State: 'signin' or 'signup'
+  let authMode = 'signin';
 
   // --- INIT ---
-  async function init() {
+  function init() {
     appData = window.AscendStorage.load();
     setupRouting();
     setupEventListeners();
-    
-    // Auto populate settings inputs
-    populateSettingsForm();
+    setupAuthListeners();
     
     // Check for daily reset
     checkDailyReset();
     
     // Render current view
     navigate('dashboard');
+  }
 
-    // Auto-pull from Gist on startup if credentials exist and Auto-Sync is enabled
-    if (appData.settings.githubToken && appData.settings.gistId && appData.settings.autoSync) {
-      const syncStatusEl = document.getElementById('sync-status-msg');
-      if (syncStatusEl) {
-        syncStatusEl.className = 'sync-status';
-        syncStatusEl.textContent = 'Auto-syncing with GitHub...';
-      }
-      
-      const result = await window.AscendStorage.pullFromGist(
-        appData.settings.githubToken, 
-        appData.settings.gistId
-      );
-      
-      if (result.success) {
-        appData = result.data;
-        updateAllStreaks();
-        
-        // Refresh the current active page to load the fresh data
-        const activeItem = document.querySelector('.nav-item.active');
-        if (activeItem) {
-          const sectionId = activeItem.getAttribute('data-section');
-          navigate(sectionId);
+  // --- AUTH LISTENERS & BINDINGS ---
+  function setupAuthListeners() {
+    const isConfigured = window.AscendStorage.isFirebaseConfigured();
+    const authCard = document.getElementById('firebase-auth-card');
+    
+    if (!isConfigured) {
+      if (authCard) authCard.style.display = 'none';
+      updateSidebarAuthUI(null);
+      return;
+    }
+
+    if (authCard) authCard.style.display = 'block';
+
+    // Listen to Firebase Auth state changes
+    window.AscendStorage.onAuthStateChanged(async (user) => {
+      updateSidebarAuthUI(user);
+      updateSettingsAuthUI(user);
+
+      if (user) {
+        // Auto-pull from Firestore on sign-in
+        const statusEl = document.getElementById('firestore-sync-status');
+        if (statusEl) {
+          statusEl.className = 'sync-status';
+          statusEl.textContent = 'Syncing data with Firestore...';
         }
         
-        if (syncStatusEl) {
-          syncStatusEl.className = 'sync-status success';
-          syncStatusEl.textContent = `✓ Synced with GitHub on load!`;
-        }
-      } else {
-        if (syncStatusEl) {
-          syncStatusEl.className = 'sync-status error';
-          syncStatusEl.textContent = `✗ Auto-pull failed: ${result.error}`;
+        const result = await window.AscendStorage.loadFromFirestore(user.uid);
+        if (result.success) {
+          appData = result.data;
+          updateAllStreaks();
+          
+          // Refresh the current active view with fresh cloud data
+          const activeItem = document.querySelector('.nav-item.active');
+          if (activeItem) {
+            navigate(activeItem.getAttribute('data-section'));
+          }
+          if (statusEl) {
+            statusEl.className = 'sync-status success';
+            statusEl.textContent = '✓ Cloud data loaded successfully.';
+          }
+        } else {
+          // If no cloud data exists (new account), upload current local storage to Firestore
+          console.log('No cloud data, uploading local guest database...');
+          await window.AscendStorage.syncToFirestore(user.uid, appData);
+          if (statusEl) {
+            statusEl.className = 'sync-status success';
+            statusEl.textContent = '✓ Local data uploaded to your new cloud account.';
+          }
         }
       }
+    });
+  }
+
+  function updateSidebarAuthUI(user) {
+    const avatar = document.getElementById('sidebar-avatar');
+    const name = document.getElementById('sidebar-name');
+    const title = document.getElementById('sidebar-title');
+
+    if (user) {
+      avatar.textContent = user.email.substring(0, 2).toUpperCase();
+      avatar.style.background = 'var(--secondary-gradient)';
+      name.textContent = appData.profile.name || 'User';
+      title.textContent = user.email;
+    } else {
+      avatar.textContent = 'G';
+      avatar.style.background = 'rgba(255, 255, 255, 0.05)';
+      name.textContent = 'Guest Mode';
+      title.textContent = 'Tap to Cloud Sync';
     }
   }
 
-  // --- SAVE & AUTO SYNC HELPER ---
+  function updateSettingsAuthUI(user) {
+    const loggedOutDiv = document.getElementById('auth-logged-out-state');
+    const loggedInDiv = document.getElementById('auth-logged-in-state');
+    const emailSpan = document.getElementById('logged-in-email');
+
+    if (user) {
+      if (loggedOutDiv) loggedOutDiv.style.display = 'none';
+      if (loggedInDiv) loggedInDiv.style.display = 'block';
+      if (emailSpan) emailSpan.textContent = user.email;
+    } else {
+      if (loggedOutDiv) loggedOutDiv.style.display = 'block';
+      if (loggedInDiv) loggedInDiv.style.display = 'none';
+    }
+  }
+
+  // --- SAVE & AUTO SYNC FIRESTORE ---
+  let firestoreSyncTimeout = null;
   function saveAndSync() {
     window.AscendStorage.save(appData);
     
-    if (appData.settings.githubToken && appData.settings.gistId && appData.settings.autoSync) {
-      const statusEl = document.getElementById('sync-status-msg');
-      if (statusEl) {
-        statusEl.className = 'sync-status';
-        statusEl.textContent = 'Syncing...';
-      }
-      
-      // Perform background sync without blocking UI
-      window.AscendStorage.syncWithGist(appData).then(res => {
-        if (res.success) {
-          console.log('Background Gist sync completed.');
-          if (statusEl) {
-            statusEl.className = 'sync-status success';
-            statusEl.textContent = `✓ Auto-synced at ${new Date().toLocaleTimeString()}`;
-          }
-        } else {
-          console.warn('Background Gist sync failed:', res.error);
-          if (statusEl) {
-            statusEl.className = 'sync-status error';
-            statusEl.textContent = `✗ Auto-sync failed: ${res.error}`;
-          }
+    // Auto-sync with Firestore if logged in
+    const isConfigured = window.AscendStorage.isFirebaseConfigured();
+    if (isConfigured) {
+      const user = firebase.auth().currentUser;
+      if (user && appData.settings.autoSync) {
+        const statusEl = document.getElementById('firestore-sync-status');
+        if (statusEl) {
+          statusEl.className = 'sync-status';
+          statusEl.textContent = 'Syncing...';
         }
-      });
+        
+        // Debounce Firestore writes to prevent spamming updates during typing/quick clicks
+        clearTimeout(firestoreSyncTimeout);
+        firestoreSyncTimeout = setTimeout(() => {
+          window.AscendStorage.syncToFirestore(user.uid, appData).then(res => {
+            if (res.success) {
+              if (statusEl) {
+                statusEl.className = 'sync-status success';
+                statusEl.textContent = `✓ Auto-synced with Cloud at ${new Date().toLocaleTimeString()}`;
+              }
+            } else {
+              if (statusEl) {
+                statusEl.className = 'sync-status error';
+                statusEl.textContent = `✗ Sync failed: ${res.error}`;
+              }
+            }
+          });
+        }, 1500);
+      }
     }
   }
 
@@ -245,9 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDashboard() {
     const today = getTodayStr();
     
-    document.querySelector('.profile-name').textContent = appData.profile.name || 'Achiever';
-    document.querySelector('.profile-title').textContent = appData.profile.title || 'Growth Mode';
-    document.querySelector('.avatar').textContent = (appData.profile.name || 'U').substring(0, 2).toUpperCase();
+    // Profile Sidebar render
+    const isConfigured = window.AscendStorage.isFirebaseConfigured();
+    const user = isConfigured ? firebase.auth().currentUser : null;
+    updateSidebarAuthUI(user);
     
     document.getElementById('dash-date').textContent = formatDateFriendly(today);
     document.getElementById('user-greeting').textContent = `Keep going, ${appData.profile.name || 'Achiever'}!`;
@@ -727,7 +786,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHabits();
   }
 
-  // Delete goal
   function deleteGoal(goalId) {
     appData.goals = appData.goals.filter(g => g.id !== goalId);
     saveAndSync();
@@ -751,6 +809,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setupEventListeners() {
+    // 1. Sidebar Profile tap -> Opens Login modal if Guest
+    const profileCard = document.getElementById('sidebar-profile-card');
+    if (profileCard) {
+      profileCard.addEventListener('click', () => {
+        const isConfigured = window.AscendStorage.isFirebaseConfigured();
+        if (!isConfigured) {
+          alert('Please configure your Firebase Database in Settings first.');
+          navigate('settings');
+          return;
+        }
+        const user = firebase.auth().currentUser;
+        if (!user) {
+          openAuthModal();
+        } else {
+          navigate('settings');
+        }
+      });
+    }
+
+    // 2. Habits Actions
     const addHabitBtn = document.getElementById('add-habit-btn');
     if (addHabitBtn) {
       addHabitBtn.addEventListener('click', () => openModal('habit-modal'));
@@ -785,6 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // 3. Goals Actions
     const addGoalBtn = document.getElementById('add-goal-btn');
     if (addGoalBtn) {
       addGoalBtn.addEventListener('click', () => {
@@ -853,13 +932,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Modal close triggers
     document.querySelectorAll('.modal-close').forEach(btn => {
       btn.addEventListener('click', () => {
         closeModal('habit-modal');
         closeModal('goal-modal');
+        closeModal('auth-modal');
       });
     });
 
+    // 4. Profile Settings Form
     const profileForm = document.getElementById('profile-form');
     if (profileForm) {
       profileForm.addEventListener('submit', (e) => {
@@ -873,6 +955,109 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // 5. Firebase Settings Form
+    const fbConfigForm = document.getElementById('firebase-config-form');
+    if (fbConfigForm) {
+      fbConfigForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const jsonStr = document.getElementById('firebase-config-input').value.trim();
+        const result = window.AscendStorage.saveFirebaseConfig(jsonStr);
+        if (result.success) {
+          alert(result.message);
+          window.location.reload(); // Reload page to reinitialize Firebase with new config
+        } else {
+          alert(result.error);
+        }
+      });
+    }
+
+    const clearFbBtn = document.getElementById('clear-firebase-btn');
+    if (clearFbBtn) {
+      clearFbBtn.addEventListener('click', () => {
+        if (confirm('Disconnect Firebase cloud sync? You will return to Guest offline mode.')) {
+          window.AscendStorage.saveFirebaseConfig('');
+          alert('Firebase disconnected. Reloading...');
+          window.location.reload();
+        }
+      });
+    }
+
+    // 6. Auth settings panel listeners
+    const openAuthBtn = document.getElementById('open-auth-modal-btn');
+    if (openAuthBtn) {
+      openAuthBtn.addEventListener('click', () => openAuthModal());
+    }
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        if (confirm('Log out from your Cloud Sync Account?')) {
+          await window.AscendStorage.logout();
+          alert('Logged out! Returning to local guest database.');
+          window.location.reload();
+        }
+      });
+    }
+
+    const syncNowBtn = document.getElementById('sync-firestore-now-btn');
+    if (syncNowBtn) {
+      syncNowBtn.addEventListener('click', async () => {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+        syncNowBtn.disabled = true;
+        syncNowBtn.textContent = 'Syncing...';
+        const res = await window.AscendStorage.syncToFirestore(user.uid, appData);
+        syncNowBtn.disabled = false;
+        syncNowBtn.textContent = 'Sync Data Now';
+        if (res.success) {
+          alert('Successfully synced with your Firebase Firestore cloud account!');
+        } else {
+          alert('Sync failed: ' + res.error);
+        }
+      });
+    }
+
+    // 7. Auth Modal Form Handling
+    const authForm = document.getElementById('auth-form');
+    if (authForm) {
+      authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('auth-email-input').value.trim();
+        const password = document.getElementById('auth-password-input').value;
+        const submitBtn = document.getElementById('auth-submit-btn');
+
+        if (!email || !password) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = authMode === 'signin' ? 'Signing In...' : 'Registering...';
+
+        try {
+          if (authMode === 'signin') {
+            await window.AscendStorage.loginEmail(email, password);
+            alert('Welcome back! Successfully logged in.');
+          } else {
+            await window.AscendStorage.registerEmail(email, password);
+            alert('Welcome! Your account has been registered successfully.');
+          }
+          closeModal('auth-modal');
+        } catch (err) {
+          alert('Authentication Error: ' + err.message);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = authMode === 'signin' ? 'Sign In' : 'Register';
+        }
+      });
+    }
+
+    const authToggleLink = document.getElementById('auth-toggle-link');
+    if (authToggleLink) {
+      authToggleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleAuthMode();
+      });
+    }
+
+    // 8. JSON backup imports/exports
     const exportBtn = document.getElementById('export-backup-btn');
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
@@ -901,82 +1086,56 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
       });
     }
+  }
 
-    const syncForm = document.getElementById('sync-form');
-    if (syncForm) {
-      syncForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        appData.settings.githubToken = document.getElementById('github-token-input').value.trim();
-        appData.settings.gistId = document.getElementById('gist-id-input').value.trim();
-        appData.settings.autoSync = document.getElementById('auto-sync-checkbox').checked;
+  function openAuthModal() {
+    authMode = 'signin';
+    document.getElementById('auth-modal-title').textContent = 'Sign In to Ascend';
+    document.getElementById('auth-submit-btn').textContent = 'Sign In';
+    document.getElementById('auth-toggle-msg').innerHTML = `Don't have an account? <a href="#" id="auth-toggle-link" style="color: var(--primary); font-weight:600; text-decoration:none;">Register here</a>`;
+    
+    // Bind toggle link again since innerHTML rewrote it
+    document.getElementById('auth-toggle-link').onclick = (e) => {
+      e.preventDefault();
+      toggleAuthMode();
+    };
+    
+    openModal('auth-modal');
+  }
 
-        saveAndSync();
-        alert('Sync settings saved.');
-      });
+  function toggleAuthMode() {
+    const title = document.getElementById('auth-modal-title');
+    const btn = document.getElementById('auth-submit-btn');
+    const msg = document.getElementById('auth-toggle-msg');
+
+    if (authMode === 'signin') {
+      authMode = 'signup';
+      title.textContent = 'Register Ascend Account';
+      btn.textContent = 'Register';
+      msg.innerHTML = `Already have an account? <a href="#" id="auth-toggle-link" style="color: var(--primary); font-weight:600; text-decoration:none;">Sign In here</a>`;
+    } else {
+      authMode = 'signin';
+      title.textContent = 'Sign In to Ascend';
+      btn.textContent = 'Sign In';
+      msg.innerHTML = `Don't have an account? <a href="#" id="auth-toggle-link" style="color: var(--primary); font-weight:600; text-decoration:none;">Register here</a>`;
     }
 
-    const syncNowBtn = document.getElementById('sync-now-btn');
-    const syncStatusEl = document.getElementById('sync-status-msg');
-
-    if (syncNowBtn) {
-      syncNowBtn.addEventListener('click', async () => {
-        syncNowBtn.disabled = true;
-        syncNowBtn.textContent = 'Syncing...';
-        syncStatusEl.className = 'sync-status';
-        syncStatusEl.textContent = 'Contacting GitHub...';
-
-        const result = await window.AscendStorage.syncWithGist(appData);
-        syncNowBtn.disabled = false;
-        syncNowBtn.textContent = 'Sync Now';
-
-        if (result.success) {
-          syncStatusEl.className = 'sync-status success';
-          syncStatusEl.textContent = `✓ Synced successfully! ${result.gistId ? 'Gist Created: ' + result.gistId : 'Gist Updated'}`;
-          document.getElementById('gist-id-input').value = appData.settings.gistId;
-        } else {
-          syncStatusEl.className = 'sync-status error';
-          syncStatusEl.textContent = `✗ Sync failed: ${result.error}`;
-        }
-      });
-    }
-
-    const pullNowBtn = document.getElementById('pull-now-btn');
-    if (pullNowBtn) {
-      pullNowBtn.addEventListener('click', async () => {
-        const token = document.getElementById('github-token-input').value.trim();
-        const gistId = document.getElementById('gist-id-input').value.trim();
-
-        if (!token || !gistId) {
-          alert('Please enter your GitHub Token and Gist ID first.');
-          return;
-        }
-
-        if (confirm('Pulling from Gist will overwrite your current browser data. Do you wish to proceed?')) {
-          pullNowBtn.disabled = true;
-          pullNowBtn.textContent = 'Pulling...';
-          const result = await window.AscendStorage.pullFromGist(token, gistId);
-          pullNowBtn.disabled = false;
-          pullNowBtn.textContent = 'Pull Data';
-
-          if (result.success) {
-            appData = result.data;
-            alert('Data pulled and restored successfully from GitHub Gist!');
-            updateAllStreaks();
-            navigate('dashboard');
-          } else {
-            alert(`Failed to pull: ${result.error}`);
-          }
-        }
-      });
-    }
+    document.getElementById('auth-toggle-link').onclick = (e) => {
+      e.preventDefault();
+      toggleAuthMode();
+    };
   }
 
   function populateSettingsForm() {
     document.getElementById('profile-name-input').value = appData.profile.name || '';
     document.getElementById('profile-title-input').value = appData.profile.title || '';
-    document.getElementById('github-token-input').value = appData.settings.githubToken || '';
-    document.getElementById('gist-id-input').value = appData.settings.gistId || '';
-    document.getElementById('auto-sync-checkbox').checked = appData.settings.autoSync || false;
+    
+    const isConfigured = window.AscendStorage.isFirebaseConfigured();
+    if (isConfigured) {
+      document.getElementById('firebase-config-input').value = window.AscendStorage.getFirebaseConfig();
+    } else {
+      document.getElementById('firebase-config-input').value = '';
+    }
   }
 
   init();

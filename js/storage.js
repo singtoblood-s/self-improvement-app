@@ -1,11 +1,9 @@
-// Ascend Storage Manager
+// Ascend Storage & Firebase Manager
 const STORAGE_KEY = 'ascend_self_improvement_data';
+const FB_CONFIG_KEY = 'ascend_firebase_config';
 
 const DEFAULT_DATA = {
-  profile: {
-    name: 'User',
-    title: 'Self Improvement Journey'
-  },
+  profile: { name: 'User', title: 'Self Improvement Journey' },
   habits: [
     {
       id: 'h1',
@@ -13,7 +11,7 @@ const DEFAULT_DATA = {
       category: 'Mind',
       streak: 0,
       maxStreak: 0,
-      logs: {}, // Format: { "YYYY-MM-DD": true }
+      logs: {},
       createdAt: new Date().toISOString()
     },
     {
@@ -41,8 +39,8 @@ const DEFAULT_DATA = {
       title: 'Establish a Growth Mindset',
       description: 'Read regularly and develop healthy routines to maximize focus.',
       category: 'Mindset',
-      status: 'active', // active, completed
-      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+      status: 'active',
+      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       milestones: [
         { id: 'm1', title: 'Complete 10-day reading streak', completed: false },
         { id: 'm2', title: 'Log progress in journal for 7 days', completed: false },
@@ -54,20 +52,45 @@ const DEFAULT_DATA = {
   journal: [
     {
       date: new Date().toISOString().split('T')[0],
-      mood: 'excellent', // excellent, good, neutral, bad, awful
+      mood: 'excellent',
       content: 'Welcome to Ascend! Today is the start of a new chapter. I will use this space to track my daily reflections and plan my future self.'
     }
   ],
   settings: {
-    githubToken: '',
-    gistId: '',
-    autoSync: false,
+    firebaseConfigStr: '',
+    autoSync: true,
     lastSynced: ''
   }
 };
 
+let db = null;
+let auth = null;
+let firebaseInitialized = false;
+
+// Initialize Firebase if config exists
+function initFirebase() {
+  const savedConfig = localStorage.getItem(FB_CONFIG_KEY);
+  if (savedConfig) {
+    try {
+      const config = JSON.parse(savedConfig);
+      // Prevent initializing multiple times
+      if (firebase.apps.length === 0) {
+        firebase.initializeApp(config);
+      }
+      db = firebase.firestore();
+      auth = firebase.auth();
+      firebaseInitialized = true;
+      console.log('Firebase initialized successfully.');
+    } catch (e) {
+      console.error('Failed to initialize Firebase with saved config:', e);
+    }
+  }
+}
+
+initFirebase();
+
 const AscendStorage = {
-  // Load entire database
+  // Load entire database from local storage
   load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -76,7 +99,6 @@ const AscendStorage = {
     }
     try {
       const data = JSON.parse(raw);
-      // Ensure all root structures exist in case of updates
       return {
         profile: data.profile || DEFAULT_DATA.profile,
         habits: data.habits || [],
@@ -90,9 +112,37 @@ const AscendStorage = {
     }
   },
 
-  // Save entire database
+  // Save database to local storage
   save(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  },
+
+  // Save Firebase Config JSON
+  saveFirebaseConfig(configStr) {
+    if (!configStr.trim()) {
+      localStorage.removeItem(FB_CONFIG_KEY);
+      return { success: true, message: 'Firebase configuration removed.' };
+    }
+    try {
+      // Validate JSON structure
+      const parsed = JSON.parse(configStr);
+      if (!parsed.apiKey || !parsed.projectId) {
+        throw new Error('Config missing core parameters (apiKey or projectId).');
+      }
+      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(parsed));
+      return { success: true, message: 'Config saved! Reloading to apply...' };
+    } catch (e) {
+      return { success: false, error: 'Invalid JSON configuration: ' + e.message };
+    }
+  },
+
+  getFirebaseConfig() {
+    const raw = localStorage.getItem(FB_CONFIG_KEY);
+    return raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
+  },
+
+  isFirebaseConfigured() {
+    return firebaseInitialized;
   },
 
   // Export database to a downloaded JSON file
@@ -122,117 +172,83 @@ const AscendStorage = {
     }
   },
 
-  // --- GITHUB GIST SYNC ---
-  async syncWithGist(data) {
-    const { githubToken, gistId } = data.settings;
-    if (!githubToken) {
-      return { success: false, error: 'GitHub Token is missing. Configure in settings.' };
+  // --- FIRESTORE METHODS ---
+  async syncToFirestore(uid, data) {
+    if (!firebaseInitialized || !db) {
+      return { success: false, error: 'Firebase is not initialized.' };
     }
-
-    const payload = {
-      description: 'Ascend Self-Improvement App Sync Data',
-      public: false,
-      files: {
-        'ascend_db.json': {
-          content: JSON.stringify(data, null, 2)
-        }
-      }
-    };
-
-    const headers = {
-      'Authorization': `Bearer ${githubToken}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json'
-    };
-
     try {
-      // 1. Create a new Gist if Gist ID is not set
-      if (!gistId) {
-        const response = await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          throw new Error(`GitHub API error: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        data.settings.gistId = result.id;
-        data.settings.lastSynced = new Date().toISOString();
-        this.save(data);
-        return { success: true, action: 'created', gistId: result.id, lastSynced: data.settings.lastSynced };
-      }
-
-      // 2. Update existing Gist
-      const response = await fetch(`https://api.github.com/gists/${gistId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(payload)
-      });
-
-      if (response.status === 404) {
-        // Gist was deleted on GitHub, clear Gist ID and retry to create a new one
-        data.settings.gistId = '';
-        this.save(data);
-        return this.syncWithGist(data);
-      }
-
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.statusText}`);
-      }
-
+      const payload = {
+        profile: data.profile,
+        habits: data.habits,
+        goals: data.goals,
+        journal: data.journal,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await db.collection('users').doc(uid).set(payload, { merge: true });
       data.settings.lastSynced = new Date().toISOString();
       this.save(data);
-      return { success: true, action: 'updated', lastSynced: data.settings.lastSynced };
-
-    } catch (error) {
-      console.error('Gist Sync error:', error);
-      return { success: false, error: error.message };
+      return { success: true, lastSynced: data.settings.lastSynced };
+    } catch (e) {
+      console.error('Firestore save failed:', e);
+      return { success: false, error: e.message };
     }
   },
 
-  // Pull data from existing Gist ID
-  async pullFromGist(githubToken, gistId) {
-    if (!githubToken || !gistId) {
-      return { success: false, error: 'Token or Gist ID missing.' };
+  async loadFromFirestore(uid) {
+    if (!firebaseInitialized || !db) {
+      return { success: false, error: 'Firebase is not initialized.' };
     }
-
-    const headers = {
-      'Authorization': `Bearer ${githubToken}`,
-      'Accept': 'application/vnd.github.v3+json'
-    };
-
     try {
-      const response = await fetch(`https://api.github.com/gists/${gistId}`, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`Gist not found. Status: ${response.status}`);
+      const doc = await db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        const cloudData = doc.data();
+        const local = this.load();
+        
+        // Merge cloud data but retain local settings
+        const merged = {
+          profile: cloudData.profile || local.profile,
+          habits: cloudData.habits || local.habits,
+          goals: cloudData.goals || local.goals,
+          journal: cloudData.journal || local.journal,
+          settings: local.settings
+        };
+        this.save(merged);
+        return { success: true, data: merged };
       }
-
-      const result = await response.json();
-      const dbFile = result.files['ascend_db.json'];
-      if (!dbFile || !dbFile.content) {
-        throw new Error('Gist does not contain ascend_db.json file.');
-      }
-
-      const incomingData = JSON.parse(dbFile.content);
-      // Retain token and gistId settings from browser
-      incomingData.settings.githubToken = githubToken;
-      incomingData.settings.gistId = gistId;
-      incomingData.settings.lastSynced = new Date().toISOString();
-      
-      this.save(incomingData);
-      return { success: true, data: incomingData };
-
-    } catch (error) {
-      console.error('Gist Pull error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No cloud database document found for this user.' };
+    } catch (e) {
+      console.error('Firestore load failed:', e);
+      return { success: false, error: e.message };
     }
+  },
+
+  // --- AUTH HOOKS ---
+  async registerEmail(email, password) {
+    if (!firebaseInitialized || !auth) {
+      throw new Error('Firebase is not configured.');
+    }
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    return cred.user;
+  },
+
+  async loginEmail(email, password) {
+    if (!firebaseInitialized || !auth) {
+      throw new Error('Firebase is not configured.');
+    }
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    return cred.user;
+  },
+
+  async logout() {
+    if (!firebaseInitialized || !auth) return;
+    await auth.signOut();
+  },
+
+  onAuthStateChanged(callback) {
+    if (!firebaseInitialized || !auth) return null;
+    return auth.onAuthStateChanged(callback);
   }
 };
+
 window.AscendStorage = AscendStorage;
