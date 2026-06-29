@@ -13,9 +13,9 @@ All files are hosted statically, meaning the app runs entirely in your web brows
 - **🧭 Goals & Milestones**: Setup long-term goals with nested milestones, dynamic completion percentage calculation, and deadline warning indicators.
 - **📝 Reflection Journal**: Log daily thoughts, write reflections, and monitor your mood trends with interactive icons.
 - **📈 Analytics Graphs**: Visual statistics powered by Chart.js (Weekly Habit check-in rate, Goals active vs. completed, and 30-day Mood trend lines).
-- **🔒 Private Local Data**: All data is saved directly on your browser storage (IndexedDB/LocalStorage). Zero bytes are sent to third parties unless you turn on Gist sync.
+- **🔒 Private Local Data**: All data is saved directly on your browser storage (IndexedDB/LocalStorage). Zero bytes are sent to third parties unless you turn on Firebase sync.
 - **💾 Import/Export Backups**: Easily download a `.json` backup file of all your data directly to your computer to prevent loss.
-- **☁️ Gist Cloud Sync**: Input a GitHub Token and automatically sync data securely to a private GitHub Gist, allowing you to load your dashboard on other PCs, phones, or tablets.
+- **☁️ Firebase Cloud Sync**: Built-in authentication (Email & Password) and Firestore integration to sync data securely across your PC and smartphone instantly.
 
 ---
 
@@ -36,10 +36,10 @@ To access your personal self-improvement app from any device over the internet, 
 2. Click the **New** button to create a new repository.
 3. Give it a name (e.g., `self-improvement-app`).
 4. Set it as **Public** (required for free GitHub Pages hosting).
-5. Do *not* initialize it with a README, `.gitignore`, or license. Click **Create repository**.
+5. Click **Create repository**.
 
 ### Step 2: Push Your Code to GitHub
-Open Git Bash, Command Prompt, or PowerShell in the project directory (`C:\Users\USER\Desktop\self-improvement-app`) and run:
+Open Git Bash, Command Prompt, or PowerShell in the project directory (`D:\Desktop\self-improvement-app`) and run:
 ```bash
 # Initialize git repository
 git init
@@ -67,18 +67,18 @@ git push -u origin main
 4. Under **Build and deployment**, select **Deploy from a branch** as the source.
 5. In the **Branch** dropdown, select **main** and set the folder to `/ (root)`.
 6. Click **Save**.
-7. Wait 1-2 minutes. Refresh the page, and you will see a message: *"Your site is live at `https://<your-username>.github.io/self-improvement-app/`"*.
+7. Wait 1-2 minutes. Refresh the page, and your site is live!
 
 ---
 
-## Setting up GitHub Gist Sync (Multi-Device Sync)
+## Setting up Firebase Cloud Sync (Multi-Device Sync)
 
-Since GitHub Pages serves static files, your browser data won't automatically sync between your PC and phone. To solve this, we built a secure Gist sync engine:
+The application has the owner's Firebase config pre-configured inside `js/storage.js` as the default connection parameters.
 
-1. Go to **Settings** in your GitHub Profile -> **Developer Settings** -> **Personal Access Tokens** -> **Tokens (classic)**.
-2. Click **Generate new token (classic)**.
-3. Name it (e.g. `Ascend App Sync`) and check the **`gist`** checkbox.
-4. Click **Generate token** and copy it (you will only see it once!).
-5. Open your hosted Ascend web app, go to **Settings**, paste the token in the token input field, and click **Save Sync Settings**.
-6. Click **Sync Now**. A private Gist will be created automatically, and your Gist ID will populate.
-7. To access this data from another device, just open the app on that device, go to settings, paste your **token** and **Gist ID**, and click **Pull Data**.
+To start syncing data between your PC and smartphone:
+1. Open the hosted Ascend web app in your browser on both devices.
+2. On your **PC**, click on the **Guest Mode** profile card in the bottom-left sidebar (or navigate to Settings).
+3. Click **Sign In / Register** and click **Register here** to create your sync account using an email and password.
+4. Once registered, your local guest data will automatically migrate and upload to Firestore.
+5. On your **Smartphone**, open settings/profile card, click **Sign In / Register**, and log in using the same email and password.
+6. The app will pull your database state, and sync all edits automatically in the background (debounced to save database write counts).
