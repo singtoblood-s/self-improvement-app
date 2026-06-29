@@ -63,16 +63,34 @@ const DEFAULT_DATA = {
   }
 };
 
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDqw0bX-2h4ntSbkPgBYP2gLBisZX5zy0o",
+  authDomain: "self-improve-820d8.firebaseapp.com",
+  projectId: "self-improve-820d8",
+  storageBucket: "self-improve-820d8.firebasestorage.app",
+  messagingSenderId: "553679662031",
+  appId: "1:553679662031:web:bfa96b4d5becfed2db00ba",
+  measurementId: "G-NN2G7KBKFQ"
+};
+
 let db = null;
 let auth = null;
 let firebaseInitialized = false;
 
-// Initialize Firebase if config exists
+// Initialize Firebase using hardcoded default config or local override config
 function initFirebase() {
+  let config = DEFAULT_FIREBASE_CONFIG;
   const savedConfig = localStorage.getItem(FB_CONFIG_KEY);
   if (savedConfig) {
     try {
-      const config = JSON.parse(savedConfig);
+      config = JSON.parse(savedConfig);
+    } catch (e) {
+      console.error('Failed to parse saved config:', e);
+    }
+  }
+
+  if (config && config.apiKey) {
+    try {
       // Prevent initializing multiple times
       if (firebase.apps.length === 0) {
         firebase.initializeApp(config);
@@ -80,9 +98,9 @@ function initFirebase() {
       db = firebase.firestore();
       auth = firebase.auth();
       firebaseInitialized = true;
-      console.log('Firebase initialized successfully.');
+      console.log('Firebase initialized successfully with default config.');
     } catch (e) {
-      console.error('Failed to initialize Firebase with saved config:', e);
+      console.error('Failed to initialize Firebase:', e);
     }
   }
 }
@@ -153,7 +171,8 @@ const AscendStorage = {
 
   getFirebaseConfig() {
     const raw = localStorage.getItem(FB_CONFIG_KEY);
-    return raw ? JSON.stringify(JSON.parse(raw), null, 2) : '';
+    const config = raw ? JSON.parse(raw) : DEFAULT_FIREBASE_CONFIG;
+    return JSON.stringify(config, null, 2);
   },
 
   isFirebaseConfigured() {
