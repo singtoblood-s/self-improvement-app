@@ -1344,7 +1344,7 @@ main {
     flex-direction: row;
     justify-content: space-around;
     align-items: center;
-    padding: 0 6px;
+    padding: 0 8px;
     gap: 0;
     height: 64px;
     width: 100%;
@@ -1354,7 +1354,7 @@ main {
 
   .nav-item {
     flex-direction: column;
-    padding: 8px 2px;
+    padding: 8px 4px;
     font-size: 0.7rem;
     gap: 4px;
     flex: 1 1 0;
@@ -1365,7 +1365,7 @@ main {
     color: var(--text-muted);
     position: relative;
     transition: var(--transition-fast);
-    min-width: 0; /* do not let labels expand the mobile viewport */
+    min-width: 48px; /* preserve the original mobile bottom-bar touch target */
     min-height: 48px;
     justify-content: center;
     overflow: hidden;
@@ -1411,9 +1411,9 @@ main {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.62rem;
+    font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0;
+    letter-spacing: 0.2px;
   }
 
   .sidebar-footer { display: none; }
@@ -1424,7 +1424,7 @@ main {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 0px)) 16px;
+    padding: 18px 12px calc(80px + env(safe-area-inset-bottom, 0px)) 12px;
     overflow-x: clip;
   }
 
@@ -1474,7 +1474,7 @@ main {
 
   /* Cards: more generous spacing, lighter feel */
   .card {
-    padding: 20px 18px;
+    padding: 18px 16px;
     border-radius: var(--border-radius-lg);
   }
 
@@ -1482,8 +1482,8 @@ main {
   .metrics-row {
     display: flex;
     overflow-x: auto;
-    max-width: calc(100vw - 32px);
-    width: calc(100vw - 32px);
+    max-width: calc(100vw - 24px);
+    width: calc(100vw - 24px);
     gap: 12px;
     padding-bottom: 8px;
     margin: 0;
