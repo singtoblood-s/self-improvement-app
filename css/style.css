@@ -1293,7 +1293,7 @@ textarea.form-control {
   
   .nav-item {
     flex-direction: column;
-    padding: 6px 2px;
+    padding: 10px 2px 6px 2px;
     font-size: 0.65rem;
     gap: 3px;
     flex: 1;
@@ -1301,20 +1301,39 @@ textarea.form-control {
     border: none;
     background: transparent;
     border-radius: var(--border-radius-sm);
+    color: var(--text-muted);
+    position: relative;
+    transition: var(--transition-fast);
   }
   
   .nav-item:hover {
     background: transparent;
+    color: var(--text-secondary);
   }
   
   .nav-item.active {
     background: transparent;
     box-shadow: none;
-    color: var(--primary);
+    color: #ffffff;
   }
 
   .nav-item.active i {
+    color: var(--secondary) !important;
+    text-shadow: 0 0 10px var(--secondary-glow);
     transform: translateY(-2px);
+  }
+
+  /* Glowing top indicator line for active tab */
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: var(--secondary-gradient);
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 2px 10px var(--secondary-glow);
   }
   
   .nav-item span {
