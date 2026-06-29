@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Auth Modal State: 'signin' or 'signup'
   let authMode = 'signin';
 
+  // Edit Modal State
+  let editingHabitId = null;
+  let editingGoalId = null;
+
   // --- INIT ---
   function init() {
     appData = window.AscendStorage.load();
@@ -430,7 +434,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="btn btn-primary" id="empty-add-habit-btn">+ Add Your First Habit</button>
         </div>
       `;
-      document.getElementById('empty-add-habit-btn').addEventListener('click', () => openModal('habit-modal'));
+      document.getElementById('empty-add-habit-btn').addEventListener('click', () => {
+        resetHabitFormForCreate();
+        openModal('habit-modal');
+      });
       return;
     }
 
@@ -473,6 +480,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="habit-card-title">${habit.name}</span>
           </div>
           <div class="habit-actions">
+            <button class="action-icon-btn edit-btn" title="Edit Habit" data-id="${habit.id}">
+              ✎
+            </button>
             <button class="action-icon-btn delete-btn" title="Delete Habit" data-id="${habit.id}">
               🗑
             </button>
@@ -509,6 +519,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      card.querySelector('.edit-btn').addEventListener('click', () => {
+        openHabitEditor(habit.id);
+      });
+
       card.querySelector('.delete-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this habit? All log history will be deleted.')) {
           deleteHabit(habit.id);
@@ -533,7 +547,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="btn btn-primary" id="empty-add-goal-btn">+ Add Your First Goal</button>
         </div>
       `;
-      document.getElementById('empty-add-goal-btn').addEventListener('click', () => openModal('goal-modal'));
+      document.getElementById('empty-add-goal-btn').addEventListener('click', () => {
+        resetGoalFormForCreate();
+        openModal('goal-modal');
+      });
       return;
     }
 
@@ -541,8 +558,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'card goal-card';
       
-      const totalMilestones = goal.milestones.length;
-      const completedMilestones = goal.milestones.filter(m => m.completed).length;
+      const milestones = Array.isArray(goal.milestones) ? goal.milestones : [];
+      const totalMilestones = milestones.length;
+      const completedMilestones = milestones.filter(m => m.completed).length;
       
       let progressPercent = 0;
       if (totalMilestones > 0) {
@@ -555,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isOverdue = goal.targetDate < today && goal.status !== 'completed';
 
       let milestonesHtml = '';
-      goal.milestones.forEach(m => {
+      milestones.forEach(m => {
         milestonesHtml += `
           <div class="milestone-item ${m.completed ? 'completed' : ''}" data-milestone-id="${m.id}">
             <div class="milestone-checkbox">✓</div>
@@ -576,9 +594,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="goal-card-title" style="margin-top:8px;">${goal.title}</span>
             <span class="goal-card-desc">${goal.description || 'No description provided.'}</span>
           </div>
-          <button class="action-icon-btn delete-btn" title="Delete Goal" data-id="${goal.id}">
-            🗑
-          </button>
+          <div class="goal-actions">
+            <button class="action-icon-btn edit-btn" title="Edit Goal" data-id="${goal.id}">
+              ✎
+            </button>
+            <button class="action-icon-btn delete-btn" title="Delete Goal" data-id="${goal.id}">
+              🗑
+            </button>
+          </div>
         </div>
         
         <div class="goal-progress-section">
@@ -620,6 +643,10 @@ document.addEventListener('DOMContentLoaded', () => {
           completeGoal(goal.id);
         });
       }
+
+      card.querySelector('.edit-btn').addEventListener('click', () => {
+        openGoalEditor(goal.id);
+      });
 
       card.querySelector('.delete-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this goal and its milestones?')) {
@@ -806,10 +833,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function setHabitModalMode(mode) {
+    const title = document.querySelector('#habit-modal .modal-title');
+    const submitBtn = document.querySelector('#habit-form button[type="submit"]');
+    if (title) title.textContent = mode === 'edit' ? 'Edit Habit' : 'Define New Habit';
+    if (submitBtn) submitBtn.textContent = mode === 'edit' ? 'Save Habit' : 'Create Habit';
+  }
+
+  function setGoalModalMode(mode) {
+    const title = document.querySelector('#goal-modal .modal-title');
+    const submitBtn = document.querySelector('#goal-form button[type="submit"]');
+    if (title) title.textContent = mode === 'edit' ? 'Edit Goal' : 'Set New Goal';
+    if (submitBtn) submitBtn.textContent = mode === 'edit' ? 'Save Goal' : 'Create Goal';
+  }
+
+  function escapeAttribute(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function resetHabitFormForCreate() {
+    editingHabitId = null;
+    const form = document.getElementById('habit-form');
+    if (form) form.reset();
+    setHabitModalMode('create');
+  }
+
+  function resetGoalFormForCreate() {
+    editingGoalId = null;
+    const form = document.getElementById('goal-form');
+    if (form) form.reset();
+    const container = document.getElementById('milestone-inputs-container');
+    if (container) {
+      container.innerHTML = `
+        <input type="text" class="form-control milestone-input-field" placeholder="Milestone 1 title" style="margin-bottom:8px;">
+      `;
+    }
+    setGoalModalMode('create');
+  }
+
+  function openHabitEditor(habitId) {
+    const habit = appData.habits.find(h => h.id === habitId);
+    if (!habit) return;
+    editingHabitId = habitId;
+    document.getElementById('habit-name-input').value = habit.name || '';
+    document.getElementById('habit-category-input').value = habit.category || '';
+    setHabitModalMode('edit');
+    openModal('habit-modal');
+  }
+
+  function openGoalEditor(goalId) {
+    const goal = appData.goals.find(g => g.id === goalId);
+    if (!goal) return;
+    editingGoalId = goalId;
+    document.getElementById('goal-title-input').value = goal.title || '';
+    document.getElementById('goal-desc-input').value = goal.description || '';
+    document.getElementById('goal-category-input').value = goal.category || '';
+    document.getElementById('goal-date-input').value = goal.targetDate || '';
+
+    const container = document.getElementById('milestone-inputs-container');
+    const milestones = Array.isArray(goal.milestones) ? goal.milestones : [];
+    if (container) {
+      container.innerHTML = milestones.length > 0
+        ? milestones.map((m, index) => `
+          <input type="text" class="form-control milestone-input-field" data-existing-id="${escapeAttribute(m.id)}" data-completed="${m.completed ? 'true' : 'false'}" value="${escapeAttribute(m.title)}" placeholder="Milestone ${index + 1} title" style="margin-bottom:8px;">
+        `).join('')
+        : `<input type="text" class="form-control milestone-input-field" placeholder="Milestone 1 title" style="margin-bottom:8px;">`;
+    }
+
+    setGoalModalMode('edit');
+    openModal('goal-modal');
+  }
+
   function closeModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
       modal.classList.remove('active');
+      if (id === 'habit-modal') {
+        editingHabitId = null;
+        setHabitModalMode('create');
+      }
+      if (id === 'goal-modal') {
+        editingGoalId = null;
+        setGoalModalMode('create');
+      }
       // Restore body scroll
       document.body.style.overflow = '';
     }
@@ -838,7 +948,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Habits Actions
     const addHabitBtn = document.getElementById('add-habit-btn');
     if (addHabitBtn) {
-      addHabitBtn.addEventListener('click', () => openModal('habit-modal'));
+      addHabitBtn.addEventListener('click', () => {
+        resetHabitFormForCreate();
+        openModal('habit-modal');
+      });
     }
 
     const habitForm = document.getElementById('habit-form');
@@ -850,21 +963,32 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!name) return;
 
-        const newHabit = {
-          id: 'h_' + Date.now(),
-          name: name,
-          category: category || 'Personal',
-          streak: 0,
-          maxStreak: 0,
-          logs: {},
-          createdAt: new Date().toISOString()
-        };
+        if (editingHabitId) {
+          const habit = appData.habits.find(h => h.id === editingHabitId);
+          if (!habit) return;
+          habit.name = name;
+          habit.category = category || 'Personal';
+          habit.updatedAt = new Date().toISOString();
+          editingHabitId = null;
+        } else {
+          const newHabit = {
+            id: 'h_' + Date.now(),
+            name: name,
+            category: category || 'Personal',
+            streak: 0,
+            maxStreak: 0,
+            logs: {},
+            createdAt: new Date().toISOString()
+          };
 
-        appData.habits.push(newHabit);
+          appData.habits.push(newHabit);
+        }
+
         saveAndSync();
         updateAllStreaks();
         
         habitForm.reset();
+        setHabitModalMode('create');
         closeModal('habit-modal');
         renderHabits();
       });
@@ -874,11 +998,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const addGoalBtn = document.getElementById('add-goal-btn');
     if (addGoalBtn) {
       addGoalBtn.addEventListener('click', () => {
+        resetGoalFormForCreate();
         openModal('goal-modal');
-        const container = document.getElementById('milestone-inputs-container');
-        container.innerHTML = `
-          <input type="text" class="form-control milestone-input-field" placeholder="Milestone 1 title" style="margin-bottom:8px;">
-        `;
       });
     }
 
@@ -912,28 +1033,42 @@ document.addEventListener('DOMContentLoaded', () => {
         milestoneInputs.forEach((input, index) => {
           if (input.value.trim()) {
             milestones.push({
-              id: `m_${Date.now()}_${index}`,
+              id: input.dataset.existingId || `m_${Date.now()}_${index}`,
               title: input.value.trim(),
-              completed: false
+              completed: input.dataset.completed === 'true'
             });
           }
         });
 
-        const newGoal = {
-          id: 'g_' + Date.now(),
-          title: title,
-          description: desc,
-          category: category || 'General',
-          status: 'active',
-          targetDate: deadline || getTodayStr(),
-          milestones: milestones,
-          createdAt: new Date().toISOString()
-        };
+        if (editingGoalId) {
+          const goal = appData.goals.find(g => g.id === editingGoalId);
+          if (!goal) return;
+          goal.title = title;
+          goal.description = desc;
+          goal.category = category || 'General';
+          goal.targetDate = deadline || '';
+          goal.milestones = milestones;
+          goal.updatedAt = new Date().toISOString();
+          editingGoalId = null;
+        } else {
+          const newGoal = {
+            id: 'g_' + Date.now(),
+            title: title,
+            description: desc,
+            category: category || 'General',
+            status: 'active',
+            targetDate: deadline || '',
+            milestones: milestones,
+            createdAt: new Date().toISOString()
+          };
 
-        appData.goals.push(newGoal);
+          appData.goals.push(newGoal);
+        }
+
         saveAndSync();
         
         goalForm.reset();
+        setGoalModalMode('create');
         closeModal('goal-modal');
         renderGoals();
       });

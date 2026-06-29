@@ -809,7 +809,8 @@ textarea.form-control {
   letter-spacing: 0.5px;
 }
 
-.habit-actions {
+.habit-actions,
+.goal-actions {
   display: flex;
   gap: 6px;
 }
