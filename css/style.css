@@ -1249,57 +1249,164 @@ textarea.form-control {
 @media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+    gap: 24px;
   }
   .journal-layout {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 24px;
+  }
+  .journal-sidebar-list {
+    max-height: 250px;
   }
   .analytics-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 }
 
 @media (max-width: 768px) {
+  /* Bottom Tab Navigation Bar */
   aside {
     width: 100%;
-    height: auto;
+    height: 70px;
     bottom: 0;
     top: auto;
     border-right: none;
     border-top: 1px solid var(--panel-border);
+    background: rgba(11, 19, 41, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
   }
+  
   .brand {
     display: none;
   }
+  
   nav {
     flex-direction: row;
     justify-content: space-around;
-    padding: 10px;
+    padding: 6px 12px;
+    gap: 0;
   }
+  
   .nav-item {
     flex-direction: column;
-    padding: 8px;
+    padding: 6px 2px;
     font-size: 0.65rem;
-    gap: 4px;
+    gap: 3px;
     flex: 1;
     align-items: center;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius-sm);
   }
+  
+  .nav-item:hover {
+    background: transparent;
+  }
+  
+  .nav-item.active {
+    background: transparent;
+    box-shadow: none;
+    color: var(--primary);
+  }
+
+  .nav-item.active i {
+    transform: translateY(-2px);
+  }
+  
   .nav-item span {
-    display: none;
+    display: block !important;
+    font-size: 0.65rem;
+    font-weight: 500;
   }
+  
   .sidebar-footer {
     display: none;
   }
+  
+  /* Main Content Area adjustments */
   main {
     margin-left: 0;
     width: 100%;
-    padding: 24px 20px 100px 20px;
+    padding: 24px 16px 100px 16px;
   }
+  
   .metrics-row {
     grid-template-columns: 1fr;
-  }
-  .header-container {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 16px;
   }
+  
+  .header-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .header-container h1 {
+    font-size: 1.7rem;
+  }
+  
+  /* Prevent automatic text zoom on input fields in iOS Safari */
+  .form-control,
+  textarea.form-control,
+  input[type="text"],
+  input[type="password"],
+  input[type="date"],
+  select {
+    font-size: 16px !important;
+    padding: 12px;
+  }
+
+  /* Premium Bottom-Sheet Modals */
+  .modal-overlay {
+    align-items: flex-end;
+  }
+
+  .modal-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 20px)) 20px;
+    transform: translateY(100%);
+    opacity: 1; /* Keep visible, rely on translateY for movement */
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-overlay.active .modal-container {
+    transform: translateY(0);
+  }
+
+  /* Touch-friendly check-in tracker dots */
+  .week-day-dot {
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+    border-radius: 50%;
+  }
+
+  .week-tracker-row {
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  /* Form row wrapping */
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Journal Layout */
+  .journal-layout {
+    gap: 20px;
+  }
+
+  .journal-editor-card {
+    padding: 16px;
+  }
 }
+
