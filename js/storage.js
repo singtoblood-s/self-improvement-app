@@ -140,7 +140,7 @@ const AscendStorage = {
     };
 
     const headers = {
-      'Authorization': `token ${githubToken}`,
+      'Authorization': `Bearer ${githubToken}`,
       'Accept': 'application/vnd.github.v3+json',
       'Content-Type': 'application/json'
     };
@@ -200,7 +200,7 @@ const AscendStorage = {
     }
 
     const headers = {
-      'Authorization': `token ${githubToken}`,
+      'Authorization': `Bearer ${githubToken}`,
       'Accept': 'application/vnd.github.v3+json'
     };
 
