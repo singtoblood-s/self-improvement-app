@@ -538,11 +538,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (!isCompleted && !isToday) dotClass = 'missed';
 
         weekDotsHtml += `
-          <div class="week-day-col">
-            <span class="week-day-lbl">${dayLetter}</span>
-            <div class="week-day-dot ${dotClass}" data-date="${date}" title="${formatDateFriendly(date)}">
-              ${isCompleted ? '✓' : ''}
-            </div>
+          <div class="week-dot-mini ${dotClass}" data-date="${date}" title="${formatDateFriendly(date)}">
+            ${dayLetter}
           </div>
         `;
       });
@@ -550,43 +547,29 @@ document.addEventListener('DOMContentLoaded', () => {
       card.innerHTML = `
         <div class="habit-header">
           <div class="habit-title-area">
-            <span class="habit-category">${habit.category || 'Personal'}</span>
             <span class="habit-card-title">${habit.name}</span>
-            ${habit.linkedGoalId && getGoalTitle(habit.linkedGoalId) ? `<span class="linked-goal-label">Linked Goal: ${getGoalTitle(habit.linkedGoalId)}</span>` : ''}
+            <span class="habit-meta">${habit.category || 'Personal'}${habit.linkedGoalId && getGoalTitle(habit.linkedGoalId) ? ' · 🎯 ' + getGoalTitle(habit.linkedGoalId) : ''}</span>
           </div>
           <div class="habit-actions">
-            <button class="btn btn-secondary edit-btn" title="Edit Habit" data-id="${habit.id}">
-              Edit
+            <button class="checkin-btn ${(habit.logs && habit.logs[today]) ? 'checked' : ''}" data-id="${habit.id}" title="Check in">
+              ✓
             </button>
-            <button class="action-icon-btn delete-btn" title="Delete Habit" data-id="${habit.id}">
-              🗑
-            </button>
+            <button class="action-icon-btn edit-btn" title="Edit" data-id="${habit.id}">✎</button>
+            <button class="action-icon-btn delete-btn" title="Delete" data-id="${habit.id}">×</button>
           </div>
         </div>
-        <div class="habit-stats-row">
-          <div class="habit-stat">
-            <span class="habit-stat-val">${habit.streak || 0}d</span>
-            <span class="habit-stat-lbl">Streak</span>
-          </div>
-          <div class="habit-stat">
-            <span class="habit-stat-val">${habit.maxStreak || 0}d</span>
-            <span class="habit-stat-lbl">Best</span>
-          </div>
-          <div class="habit-stat">
-            <span class="habit-stat-val">${totalLogged}</span>
-            <span class="habit-stat-lbl">Total</span>
-          </div>
-        </div>
-        ${buildHabitTimerHtml(habit, today)}
-        <div>
-          <div class="week-tracker-label">Weekly Check-in</div>
-          <div class="week-tracker-row">
+        <div class="habit-compact-row">
+          <div class="habit-stat-inline"><b>${habit.streak || 0}</b><span>d streak</span></div>
+          <div class="habit-stat-inline"><b>${habit.maxStreak || 0}</b><span>best</span></div>
+          <div class="habit-stat-inline"><b>${totalLogged}</b><span>total</span></div>
+          <div class="habit-week-mini">
             ${weekDotsHtml}
           </div>
         </div>
+        ${buildHabitTimerHtml(habit, today)}
       `;
 
-      card.querySelectorAll('.week-day-dot').forEach(dot => {
+      card.querySelectorAll('.week-dot-mini').forEach(dot => {
         const d = dot.getAttribute('data-date');
         if (d <= today) {
           dot.addEventListener('click', () => {
@@ -598,6 +581,14 @@ document.addEventListener('DOMContentLoaded', () => {
       card.querySelector('.edit-btn').addEventListener('click', () => {
         openHabitEditor(habit.id);
       });
+
+      const checkinBtn = card.querySelector('.checkin-btn');
+      if (checkinBtn) {
+        checkinBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleHabitCompletion(habit.id, today);
+        });
+      }
 
       const timerStartBtn = card.querySelector('.timer-start-btn');
       if (timerStartBtn) {
@@ -704,64 +695,58 @@ document.addEventListener('DOMContentLoaded', () => {
       card.innerHTML = `
         <div class="goal-top">
           <div class="goal-title-area">
-            <div style="display:flex; gap: 8px; align-items:center;">
-              <span class="badge ${goal.status === 'completed' ? 'badge-success' : 'badge-primary'}">
-                ${goal.status.toUpperCase()}
-              </span>
+            <div class="goal-badges">
+              <span class="badge ${goal.status === 'completed' ? 'badge-success' : 'badge-primary'}">${goal.status}</span>
               <span class="badge badge-secondary">${goal.category || 'General'}</span>
+              ${isOverdue ? '<span class="badge badge-danger">Overdue</span>' : ''}
             </div>
-            <span class="goal-card-title" style="margin-top:8px;">${goal.title}</span>
-            <span class="goal-card-desc">${goal.description || 'No description provided.'}</span>
+            <span class="goal-card-title">${goal.title}</span>
           </div>
           <div class="goal-actions">
-            <button class="btn btn-secondary edit-btn" title="Edit Goal" data-id="${goal.id}">
-              Edit
+            <button class="checkin-btn ${goal.status === 'completed' ? 'checked' : ''}" data-id="${goal.id}" title="${goal.status === 'completed' ? 'Reopen' : 'Complete'}">
+              ${goal.status === 'completed' ? '↺' : '✓'}
             </button>
-            <button class="action-icon-btn delete-btn" title="Delete Goal" data-id="${goal.id}">
-              🗑
-            </button>
+            <button class="action-icon-btn edit-btn" title="Edit" data-id="${goal.id}">✎</button>
+            <button class="action-icon-btn delete-btn" title="Delete" data-id="${goal.id}">×</button>
           </div>
         </div>
-        
+
         <div class="goal-progress-section">
-          <div class="goal-progress-meta">
-            <span>Milestones (${completedMilestones}/${totalMilestones})</span>
-            <span class="goal-progress-percent">${progressPercent}%</span>
-          </div>
-          <div class="progress-bar-bg">
+          <div class="progress-bar-bg thin">
             <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
           </div>
-        </div>
-
-        <div class="linked-routines-section">
-          <div class="linked-routines-title">Routines</div>
-          ${linkedHabitsHtml}
-        </div>
-
-        <div class="goal-milestones-list">
-          ${milestonesHtml}
-        </div>
-
-        <div class="goal-dates">
-          <div class="goal-date-target ${isOverdue ? 'badge badge-danger' : ''}" style="border:none; padding:0;">
-            📅 Deadline: ${goal.targetDate || 'No limit'}
+          <div class="goal-progress-meta">
+            <span>${completedMilestones}/${totalMilestones} milestones${totalMilestones > 0 ? ' · ' + progressPercent + '%' : ''}</span>
+            <span>📅 ${goal.targetDate || 'No limit'}</span>
           </div>
-          <button class="btn btn-secondary btn-icon" id="complete-goal-btn-${goal.id}" title="${goal.status === 'completed' ? 'Reopen Goal' : 'Mark Complete'}" style="width:30px; height:30px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;">
-            ${goal.status === 'completed' ? '↺' : '✓'}
-          </button>
         </div>
+
+        ${linkedHabits.length > 0 ? `
+          <div class="goal-routines-mini">
+            ${linkedHabits.map(h => {
+              const doneToday = h.logs && h.logs[today];
+              return `<span class="routine-pill ${doneToday ? 'done' : ''}">${doneToday ? '✓' : '○'} ${h.name}</span>`;
+            }).join('')}
+          </div>
+        ` : ''}
+
+        ${totalMilestones > 0 ? `
+          <div class="goal-milestones-mini">
+            ${milestones.map(m => `<span class="milestone-pill ${m.completed ? 'done' : ''}" data-milestone-id="${m.id}" data-goal-id="${goal.id}">${m.completed ? '✓' : '○'} ${m.title}</span>`).join('')}
+          </div>
+        ` : ''}
       `;
 
-      card.querySelectorAll('.milestone-item').forEach(el => {
+      card.querySelectorAll('.milestone-pill').forEach(el => {
         el.addEventListener('click', () => {
           const mId = el.getAttribute('data-milestone-id');
           toggleMilestone(goal.id, mId);
         });
       });
 
-      const completeBtn = card.querySelector(`#complete-goal-btn-${goal.id}`);
-      if (completeBtn) {
-        completeBtn.addEventListener('click', () => {
+      const goalCheckinBtn = card.querySelector('.goal-actions .checkin-btn');
+      if (goalCheckinBtn) {
+        goalCheckinBtn.addEventListener('click', () => {
           completeGoal(goal.id);
         });
       }

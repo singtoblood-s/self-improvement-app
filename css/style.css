@@ -1626,60 +1626,242 @@ main {
 
   .progress-ring-content { text-align: left; flex: 1; min-width: 0; }
 
-  /* --- Habits / Goals: single column, compact cards --- */
-  .habits-grid { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
-  .goals-grid { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
-  .habit-card, .goal-card { padding: 10px 12px; border-radius: 12px; }
-  .habit-card-title, .goal-card-title { font-size: 0.92rem; line-height: 1.25; }
-  .goal-card-desc { font-size: 0.78rem; line-height: 1.35; }
+  /* --- Habits / Goals: ULTRA COMPACT flat cards --- */
+  .habits-grid { grid-template-columns: 1fr; gap: 4px; margin-top: 6px; }
+  .goals-grid { grid-template-columns: 1fr; gap: 4px; margin-top: 6px; }
+  .habit-card, .goal-card {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
 
-  .habit-stats-row { gap: 4px; }
-  .habit-stat { padding: 6px 4px; }
-  .habit-stat-val { font-size: 0.9rem; }
-  .habit-stat-label { font-size: 0.6rem; }
+  /* --- Habit card flat layout --- */
+  .habit-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .habit-title-area {
+    flex: 1;
+    min-width: 0;
+    gap: 0;
+  }
+  .habit-card-title {
+    font-size: 0.88rem;
+    line-height: 1.2;
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .habit-meta {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    display: block;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-  /* --- Week tracker: tighter --- */
-  .week-tracker-row { gap: 2px; padding: 2px 0; margin-top: 6px; }
-  .week-day-dot { width: 28px; height: 28px; font-size: 0.7rem; }
-  .week-day-label { font-size: 0.55rem; }
+  .habit-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
 
-  /* --- Timer panel: stacked buttons --- */
-  .habit-timer-panel { padding: 8px 10px; margin-top: 8px; }
-  .habit-timer-meta { margin-bottom: 6px; }
-  .habit-timer-label { font-size: 0.65rem; }
-  .habit-timer-time { font-size: 0.78rem; }
-  .habit-timer-actions {
-    flex-wrap: wrap;
+  .checkin-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+  .checkin-btn:active { transform: scale(0.92); }
+  .checkin-btn.checked {
+    background: var(--success-gradient);
+    border-color: var(--success);
+    color: #fff;
+  }
+
+  .action-icon-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .action-icon-btn:hover { color: var(--text-primary); border-color: var(--panel-border-hover); }
+
+  /* --- Habit compact stats row --- */
+  .habit-compact-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .habit-stat-inline {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .habit-stat-inline b {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .habit-week-mini {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .week-dot-mini {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .week-dot-mini.completed {
+    background: var(--success-gradient);
+    border-color: var(--success);
+    color: #fff;
+  }
+  .week-dot-mini.missed {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--danger);
+  }
+  .week-dot-mini.future {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  /* --- Timer panel ultra compact --- */
+  .habit-timer-panel { padding: 6px 8px; margin-top: 6px; }
+  .habit-timer-meta { margin-bottom: 4px; gap: 4px; }
+  .habit-timer-label { font-size: 0.6rem; }
+  .habit-timer-time { font-size: 0.72rem; }
+  .habit-timer-actions { gap: 3px; }
+  .habit-timer-actions .btn { padding: 3px 6px; font-size: 0.68rem; min-height: 26px; border-radius: 6px; }
+
+  /* --- Goal card flat layout --- */
+  .goal-top {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .goal-title-area {
+    flex: 1;
+    min-width: 0;
     gap: 4px;
   }
-  .habit-timer-actions .btn { padding: 4px 8px; font-size: 0.72rem; min-height: 30px; border-radius: 8px; }
+  .goal-card-title {
+    font-size: 0.88rem;
+    line-height: 1.2;
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .goal-card-desc { display: none; }
+  .goal-badges {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .goal-actions {
+    gap: 3px;
+    flex-shrink: 0;
+  }
 
-  /* --- Goal card: ultra compact --- */
-  .goal-card-header { gap: 6px; margin-bottom: 6px; }
-  .goal-card-meta { font-size: 0.65rem; gap: 4px; }
-  .goal-card-actions { gap: 4px; }
-  .goal-card-actions .btn { padding: 4px 8px; font-size: 0.7rem; min-height: 28px; }
-  .goal-top { gap: 8px; margin-bottom: 8px; }
-  .goal-title-area { gap: 4px; }
-  .goal-progress-section { margin-top: 6px; }
-  .goal-progress-meta { font-size: 0.7rem; margin-bottom: 4px; }
-  .goal-progress-percent { font-size: 0.78rem; }
-  .linked-routines-section { margin-top: 8px; padding-top: 6px; }
-  .linked-routines-title { font-size: 0.7rem; margin-bottom: 4px; }
-  .linked-routine-item { padding: 4px 8px; font-size: 0.72rem; }
-  .goal-milestones-list { margin-top: 6px; gap: 4px; }
-  .milestone-item { padding: 6px 8px; font-size: 0.78rem; }
-  .goal-dates { margin-top: 8px; padding-top: 8px; font-size: 0.72rem; gap: 6px; }
-  .goal-date-target { font-size: 0.72rem; }
+  .goal-progress-section { margin-top: 0; }
+  .progress-bar-bg.thin {
+    height: 4px;
+    border-radius: 2px;
+  }
+  .goal-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    gap: 6px;
+  }
 
-  /* --- Edit/Delete buttons compact --- */
-  .habit-card .edit-btn,
-  .habit-card .delete-btn,
-  .goal-card .edit-btn,
-  .goal-card .delete-btn { padding: 4px 8px; font-size: 0.7rem; min-height: 28px; border-radius: 8px; }
+  /* --- Routine + milestone pills (inline) --- */
+  .goal-routines-mini,
+  .goal-milestones-mini {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .routine-pill,
+  .milestone-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--panel-border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .routine-pill.done,
+  .milestone-pill.done {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--success);
+  }
+
+  /* Hide verbose legacy bits on mobile */
+  .linked-routines-section,
+  .goal-milestones-list,
+  .goal-dates { display: none; }
 
   /* --- Badges compact --- */
-  .badge { font-size: 0.6rem; padding: 2px 6px; }
+  .badge { font-size: 0.55rem; padding: 1px 5px; text-transform: lowercase; }
 
   /* --- Journal layout: stacked, no sidebar collapse --- */
   .journal-layout { display: flex; flex-direction: column; gap: 10px; }
