@@ -124,15 +124,30 @@ const AscendStorage = {
       return { success: true, message: 'Firebase configuration removed.' };
     }
     try {
-      // Validate JSON structure
-      const parsed = JSON.parse(configStr);
+      // Gracefully handle JavaScript object notation (unquoted keys, single quotes, trailing commas)
+      let formatted = configStr.trim();
+      
+      // If it doesn't start with a brace, wrap it (in case they copied just the content)
+      if (!formatted.startsWith('{')) {
+        formatted = '{' + formatted + '}';
+      }
+      
+      formatted = formatted
+        // Replace unquoted key names with double-quoted keys
+        .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+        // Replace single quotes with double quotes
+        .replace(/'/g, '"')
+        // Remove trailing commas before closing braces
+        .replace(/,\s*([}\]])/g, '$1');
+
+      const parsed = JSON.parse(formatted);
       if (!parsed.apiKey || !parsed.projectId) {
         throw new Error('Config missing core parameters (apiKey or projectId).');
       }
       localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(parsed));
       return { success: true, message: 'Config saved! Reloading to apply...' };
     } catch (e) {
-      return { success: false, error: 'Invalid JSON configuration: ' + e.message };
+      return { success: false, error: 'Invalid configuration format: ' + e.message };
     }
   },
 
