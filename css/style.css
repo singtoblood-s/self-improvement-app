@@ -1874,7 +1874,11 @@ main {
   /* Progress ring: smaller, hide caption */
   .progress-ring-card { padding: 10px 12px; flex-direction: row; align-items: center; gap: 10px; }
   .progress-ring-card .section-title { display: none; }
-  .progress-ring-container { width: 64px; height: 64px; flex-shrink: 0; }
+  .progress-ring-container { width: 64px; height: 64px; flex-shrink: 0; margin-bottom: 0; }
+  .progress-ring-svg { width: 100%; height: 100%; }
+  .progress-ring-circle-bg { stroke-width: 6; }
+  .progress-ring-circle { stroke-width: 6; }
+  .progress-ring-text { font-size: 0.9rem !important; font-weight: 700; }
   .progress-ring-card p { font-size: 0.65rem; line-height: 1.2; }
 
   /* Mood picker: inline with label */
