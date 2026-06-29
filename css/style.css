@@ -1245,7 +1245,33 @@ textarea.form-control {
   margin-bottom: 20px;
 }
 
-/* Responsive adjustments */
+/* === MOBILE ENHANCEMENTS (shared base) === */
+/* Better tap targets, remove iOS tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Smooth scroll with momentum */
+main {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Horizontal scroll snap for metric cards */
+.metrics-row {
+  scroll-snap-type: x mandatory;
+}
+
+.metric-card {
+  scroll-snap-align: start;
+}
+
+/* === TABLET ADJUSTMENTS === */
 @media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
@@ -1263,39 +1289,54 @@ textarea.form-control {
     grid-template-columns: 1fr;
     gap: 20px;
   }
+  /* Slightly reduce main padding on tablet */
+  main {
+    padding: 32px 32px;
+  }
 }
 
+/* === MOBILE (< 768px) — Full redesign for spaciousness & ease === */
 @media (max-width: 768px) {
-  /* Bottom Tab Navigation Bar */
+  /* Widen the viewport feel: use full width, generous breathing room */
+  :root {
+    --sidebar-width: 0px;
+    --header-height: 64px;
+    --border-radius-lg: 20px;
+    --border-radius-md: 14px;
+    --border-radius-sm: 10px;
+  }
+
+  /* --- Bottom Tab Navigation Bar --- */
   aside {
     width: 100%;
-    height: 70px;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
     bottom: 0;
     top: auto;
     border-right: none;
     border-top: 1px solid var(--panel-border);
-    background: rgba(11, 19, 41, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(11, 19, 41, 0.92);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  
-  .brand {
-    display: none;
-  }
-  
+
+  .brand { display: none; }
+
   nav {
     flex-direction: row;
     justify-content: space-around;
-    padding: 6px 12px;
+    align-items: center;
+    padding: 0 8px;
     gap: 0;
+    height: 64px;
   }
-  
+
   .nav-item {
     flex-direction: column;
-    padding: 10px 2px 6px 2px;
-    font-size: 0.65rem;
-    gap: 3px;
+    padding: 8px 4px;
+    font-size: 0.7rem;
+    gap: 4px;
     flex: 1;
     align-items: center;
     border: none;
@@ -1304,17 +1345,24 @@ textarea.form-control {
     color: var(--text-muted);
     position: relative;
     transition: var(--transition-fast);
+    min-width: 48px; /* minimum touch target */
+    min-height: 48px;
+    justify-content: center;
   }
-  
+
   .nav-item:hover {
     background: transparent;
     color: var(--text-secondary);
   }
-  
+
   .nav-item.active {
     background: transparent;
     box-shadow: none;
     color: #ffffff;
+  }
+
+  .nav-item i {
+    font-size: 1.35rem;
   }
 
   .nav-item.active i {
@@ -1328,59 +1376,263 @@ textarea.form-control {
     content: '';
     position: absolute;
     top: 0;
-    left: 20%;
-    right: 20%;
+    left: 25%;
+    right: 25%;
     height: 3px;
     background: var(--secondary-gradient);
     border-radius: 0 0 3px 3px;
     box-shadow: 0 2px 10px var(--secondary-glow);
   }
-  
+
   .nav-item span {
     display: block !important;
-    font-size: 0.65rem;
-    font-weight: 500;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
   }
-  
-  .sidebar-footer {
-    display: none;
-  }
-  
-  /* Main Content Area adjustments */
+
+  .sidebar-footer { display: none; }
+
+  /* --- Main Content Area: more spacious, full-width feel --- */
   main {
     margin-left: 0;
     width: 100%;
-    padding: 24px 16px 100px 16px;
+    padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 0px)) 16px;
+    max-width: 100%;
   }
-  
-  .metrics-row {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  
+
+  /* Section headers: larger, more breathable */
   .header-container {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 24px;
+    gap: 12px;
   }
 
   .header-container h1 {
-    font-size: 1.7rem;
-  }
-  
-  /* Prevent automatic text zoom on input fields in iOS Safari */
-  .form-control,
-  textarea.form-control,
-  input[type="text"],
-  input[type="password"],
-  input[type="date"],
-  select {
-    font-size: 16px !important;
-    padding: 12px;
+    font-size: 1.75rem;
+    line-height: 1.2;
   }
 
-  /* Premium Bottom-Sheet Modals */
+  .subtitle {
+    font-size: 0.85rem;
+  }
+
+  /* Buttons: bigger touch targets */
+  .btn {
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    min-height: 44px;
+  }
+
+  /* Cards: more generous spacing, lighter feel */
+  .card {
+    padding: 20px 18px;
+    border-radius: var(--border-radius-lg);
+  }
+
+  /* --- Metrics: horizontal scroll-snap row --- */
+  .metrics-row {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 8px;
+    margin: 0 -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .metrics-row::-webkit-scrollbar { display: none; }
+
+  .metric-card {
+    min-width: 200px;
+    flex-shrink: 0;
+    padding: 16px 18px;
+  }
+
+  .metric-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+  }
+
+  .metric-value {
+    font-size: 1.35rem;
+  }
+
+  /* --- Dashboard grid: single column, generous gap --- */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .dashboard-main,
+  .dashboard-sidebar {
+    gap: 20px;
+  }
+
+  .welcome-banner {
+    padding: 24px 20px;
+  }
+
+  .welcome-content h2 {
+    font-size: 1.25rem !important;
+  }
+
+  /* Progress ring: slightly smaller to fit */
+  .progress-ring-card {
+    padding: 24px 20px;
+  }
+
+  .progress-ring-container {
+    width: 120px;
+    height: 120px;
+  }
+
+  .progress-ring-svg {
+    width: 120px;
+    height: 120px;
+  }
+
+  /* Mood picker: bigger touch targets */
+  .mood-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  /* --- Habits grid: single column, comfortable --- */
+  .habits-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .habit-card {
+    padding: 18px 16px;
+  }
+
+  .habit-card-title {
+    font-size: 1.1rem;
+  }
+
+  .habit-stats-row {
+    gap: 10px;
+  }
+
+  .habit-stat {
+    padding: 12px 8px;
+  }
+
+  .habit-stat-val {
+    font-size: 1.15rem;
+  }
+
+  /* Week tracker: bigger dots, more gap */
+  .week-day-dot {
+    width: 38px;
+    height: 38px;
+    font-size: 0.95rem;
+    border-radius: 50%;
+  }
+
+  .week-tracker-row {
+    gap: 4px;
+    padding: 4px 0;
+    justify-content: space-between;
+  }
+
+  .week-day-col {
+    flex: 1;
+  }
+
+  /* --- Goals grid: single column --- */
+  .goals-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .goal-card {
+    padding: 18px 16px;
+  }
+
+  .goal-card-title {
+    font-size: 1.15rem;
+  }
+
+  /* --- Journal layout: stacked, editor first --- */
+  .journal-layout {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 20px;
+  }
+
+  .journal-sidebar-list {
+    max-height: 220px;
+    gap: 10px;
+  }
+
+  .journal-history-item {
+    padding: 14px;
+  }
+
+  .journal-editor-card {
+    padding: 18px 16px;
+  }
+
+  .journal-editor-date {
+    font-size: 1.15rem;
+  }
+
+  .editor-mood-selector {
+    gap: 6px;
+  }
+
+  .editor-mood-selector .mood-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  /* --- Analytics: single column --- */
+  .analytics-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .chart-card {
+    padding: 18px 16px;
+  }
+
+  .chart-container {
+    height: 240px;
+  }
+
+  .chart-card h3 {
+    font-size: 1.05rem;
+  }
+
+  /* --- Settings: full width --- */
+  .settings-container {
+    max-width: 100%;
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .settings-card {
+    padding: 18px 16px;
+    gap: 16px;
+  }
+
+  .settings-section-title {
+    font-size: 1.05rem;
+  }
+
+  /* --- Premium Bottom-Sheet Modals --- */
   .modal-overlay {
     align-items: flex-end;
   }
@@ -1390,27 +1642,48 @@ textarea.form-control {
     max-width: 100%;
     margin: 0;
     border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
-    padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 20px)) 20px;
+    padding: 8px 20px calc(24px + env(safe-area-inset-bottom, 20px)) 20px;
     transform: translateY(100%);
-    opacity: 1; /* Keep visible, rely on translateY for movement */
+    opacity: 1;
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .modal-overlay.active .modal-container {
     transform: translateY(0);
   }
 
-  /* Touch-friendly check-in tracker dots */
-  .week-day-dot {
-    width: 36px;
-    height: 36px;
-    font-size: 0.95rem;
-    border-radius: 50%;
+  /* Drag handle at top of bottom sheet */
+  .modal-container::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: var(--panel-border);
+    border-radius: 2px;
+    margin: 0 auto 16px auto;
   }
 
-  .week-tracker-row {
-    gap: 6px;
-    padding: 4px 0;
+  .modal-header {
+    margin-bottom: 20px;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+  }
+
+  /* Prevent automatic text zoom on input fields in iOS Safari */
+  .form-control,
+  textarea.form-control,
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="date"],
+  select {
+    font-size: 16px !important;
+    padding: 12px 14px;
   }
 
   /* Form row wrapping */
@@ -1419,13 +1692,97 @@ textarea.form-control {
     gap: 0;
   }
 
-  /* Journal Layout */
-  .journal-layout {
-    gap: 20px;
+  /* Empty state: smaller padding */
+  .empty-state {
+    padding: 32px 20px;
   }
 
-  .journal-editor-card {
-    padding: 16px;
+  .empty-state i {
+    font-size: 2.5rem;
+  }
+
+  .empty-state-title {
+    font-size: 1.05rem;
+  }
+
+  /* Quick habits list: bigger touch targets */
+  .quick-habit-item {
+    padding: 16px 14px;
+  }
+
+  .checkbox-custom {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .quick-habit-name {
+    font-size: 0.95rem;
+  }
+
+  /* Action icon buttons: bigger */
+  .action-icon-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
+  /* Milestone items: bigger touch area */
+  .milestone-item {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .milestone-checkbox {
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+  }
+}
+
+/* === SMALL MOBILE (< 380px) — extra compactness === */
+@media (max-width: 380px) {
+  main {
+    padding: 16px 12px calc(80px + env(safe-area-inset-bottom, 0px)) 12px;
+  }
+
+  .header-container h1 {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: 16px 14px;
+  }
+
+  .metric-card {
+    min-width: 180px;
+  }
+
+  .nav-item span {
+    font-size: 0.62rem;
+  }
+
+  .nav-item i {
+    font-size: 1.25rem;
+  }
+
+  .week-day-dot {
+    width: 34px;
+    height: 34px;
+    font-size: 0.85rem;
+  }
+}
+
+/* === LANDSCAPE PHONE === */
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 500px) {
+  aside {
+    height: 56px;
+  }
+  nav {
+    height: 56px;
+  }
+  main {
+    padding: 16px 20px 70px 20px;
   }
 }
 

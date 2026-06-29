@@ -217,6 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Scroll to top on section change (important for mobile UX)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
     if (sectionId === 'dashboard') {
       renderDashboard();
     } else if (sectionId === 'habits') {
@@ -798,6 +801,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById(id);
     if (modal) {
       modal.classList.add('active');
+      // Prevent body scroll on mobile when modal is open
+      document.body.style.overflow = 'hidden';
     }
   }
 
@@ -805,6 +810,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById(id);
     if (modal) {
       modal.classList.remove('active');
+      // Restore body scroll
+      document.body.style.overflow = '';
     }
   }
 
@@ -938,6 +945,15 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModal('habit-modal');
         closeModal('goal-modal');
         closeModal('auth-modal');
+      });
+    });
+
+    // Tap outside modal to close (mobile-friendly UX)
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          closeModal(overlay.id);
+        }
       });
     });
 
