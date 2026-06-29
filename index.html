@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ascend - Self Improvement & Habit Tracker</title>
+  <!-- Tailwind CSS is avoided per guidelines, using Vanilla CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Lucide Icons for clean look -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.1.0/font/lucide.css">
+  <!-- Chart.js CDN for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Hidden SVG for global gradient usage -->
+  <svg width="0" height="0" style="position: absolute;">
+    <defs>
+      <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#06b6d4" />
+        <stop offset="100%" stop-color="#8b5cf6" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div id="app-container">
+    <!-- Sidebar Navigation -->
+    <aside>
+      <div class="brand">
+        <div class="brand-logo">
+          <i class="lucide-sparkles"></i>
+        </div>
+        <span class="brand-name">Ascend</span>
+      </div>
+
+      <nav>
+        <a class="nav-item active" data-section="dashboard">
+          <i class="lucide-layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-section="habits">
+          <i class="lucide-check-circle"></i>
+          <span>Habits</span>
+        </a>
+        <a class="nav-item" data-section="goals">
+          <i class="lucide-compass"></i>
+          <span>Goals</span>
+        </a>
+        <a class="nav-item" data-section="journal">
+          <i class="lucide-book-open"></i>
+          <span>Journal</span>
+        </a>
+        <a class="nav-item" data-section="analytics">
+          <i class="lucide-trending-up"></i>
+          <span>Analytics</span>
+        </a>
+        <a class="nav-item" data-section="settings">
+          <i class="lucide-settings"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="profile-card">
+          <div class="avatar">U</div>
+          <div class="profile-info">
+            <span class="profile-name">User</span>
+            <span class="profile-title">Self Improvement</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main>
+      
+      <!-- 1. DASHBOARD SECTION -->
+      <section id="dashboard-section" class="page-section active">
+        <div class="header-container">
+          <div>
+            <h1 id="user-greeting">Welcome back, Achiever!</h1>
+            <p class="subtitle" id="dash-date">Monday, June 29, 2026</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="dashboard-main">
+            <!-- Welcome Quote Card -->
+            <div class="card welcome-banner">
+              <div class="welcome-content">
+                <h2 style="font-family: var(--font-heading); font-weight:600; margin-bottom:8px;">Ready to elevate your life?</h2>
+                <p style="font-size:0.9rem; color: var(--text-secondary);">Consistency is the key to mastering habits. Tackle today's tasks and build a stronger, more disciplined version of yourself.</p>
+                <div class="welcome-quote">
+                  "We are what we repeatedly do. Excellence, then, is not an act, but a habit." — Aristotle
+                </div>
+              </div>
+            </div>
+
+            <!-- Metrics Quick Grid -->
+            <div class="metrics-row">
+              <div class="card metric-card">
+                <div class="metric-icon cyan">
+                  <i class="lucide-check-circle"></i>
+                </div>
+                <div class="metric-info">
+                  <span class="metric-value" id="metric-habits-rate">0%</span>
+                  <span class="metric-label">Today's Habits</span>
+                </div>
+              </div>
+
+              <div class="card metric-card">
+                <div class="metric-icon purple">
+                  <i class="lucide-compass"></i>
+                </div>
+                <div class="metric-info">
+                  <span class="metric-value" id="metric-goals-active">0</span>
+                  <span class="metric-label">Active Goals</span>
+                </div>
+              </div>
+
+              <div class="card metric-card">
+                <div class="metric-icon emerald">
+                  <i class="lucide-zap"></i>
+                </div>
+                <div class="metric-info">
+                  <span class="metric-value" id="metric-highest-streak">0 days</span>
+                  <span class="metric-label">Max Habit Streak</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Habits List -->
+            <div class="card">
+              <div class="quick-list-header">
+                <span class="section-title">Today's Habits</span>
+                <span class="badge badge-primary">Daily Routine</span>
+              </div>
+              <div class="quick-habits-list" id="quick-habits-list">
+                <!-- Populated dynamically via app.js -->
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-sidebar">
+            <!-- Daily Habit Completion Ring -->
+            <div class="card progress-ring-card">
+              <span class="section-title" style="margin-bottom: 20px;">Daily Progress</span>
+              <div class="progress-ring-container">
+                <svg class="progress-ring-svg" width="140" height="140">
+                  <circle class="progress-ring-circle-bg" cx="70" cy="70" r="60"></circle>
+                  <circle class="progress-ring-circle" id="dash-progress-circle" cx="70" cy="70" r="60"></circle>
+                </svg>
+                <div class="progress-ring-text" id="dash-progress-text">0%</div>
+              </div>
+              <p style="font-size:0.8rem; color: var(--text-secondary);">Keep checking off habits to fill the ring!</p>
+            </div>
+
+            <!-- Quick Mood Picker -->
+            <div class="card mood-picker-card">
+              <span class="section-title">How do you feel today?</span>
+              <div class="mood-emojis">
+                <button class="mood-btn" data-mood="awful" title="Awful">😢</button>
+                <button class="mood-btn" data-mood="bad" title="Bad">🙁</button>
+                <button class="mood-btn" data-mood="neutral" title="Neutral">😐</button>
+                <button class="mood-btn" data-mood="good" title="Good">🙂</button>
+                <button class="mood-btn" data-mood="excellent" title="Excellent">😁</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. HABITS SECTION -->
+      <section id="habits-section" class="page-section">
+        <div class="header-container">
+          <div>
+            <h1>Daily Habits</h1>
+            <p class="subtitle">Focus on small wins every single day</p>
+          </div>
+          <button class="btn btn-primary" id="add-habit-btn">
+            <i class="lucide-plus"></i> Add Habit
+          </button>
+        </div>
+
+        <div class="habits-grid" id="habits-grid">
+          <!-- Habit Cards populated dynamically -->
+        </div>
+      </section>
+
+      <!-- 3. GOALS SECTION -->
+      <section id="goals-section" class="page-section">
+        <div class="header-container">
+          <div>
+            <h1>Growth Goals</h1>
+            <p class="subtitle">Set your eyes on long-term achievements</p>
+          </div>
+          <button class="btn btn-primary" id="add-goal-btn">
+            <i class="lucide-plus"></i> Add Goal
+          </button>
+        </div>
+
+        <div class="goals-grid" id="goals-grid">
+          <!-- Goal Cards populated dynamically -->
+        </div>
+      </section>
+
+      <!-- 4. JOURNAL SECTION -->
+      <section id="journal-section" class="page-section">
+        <div class="header-container">
+          <div>
+            <h1>Reflections Journal</h1>
+            <p class="subtitle">Write down daily logs and review your journey</p>
+          </div>
+        </div>
+
+        <div class="journal-layout">
+          <!-- Journal History Sidebar -->
+          <div class="journal-sidebar-list" id="journal-history-list">
+            <!-- Historical journal entries populated dynamically -->
+          </div>
+
+          <!-- Journal Editor -->
+          <div class="card journal-editor-card">
+            <div class="journal-editor-header">
+              <span class="journal-editor-date" id="editor-date">Monday, June 29, 2026</span>
+              <div class="editor-mood-selector">
+                <span class="editor-mood-selector-label">Mood:</span>
+                <button class="mood-btn" data-mood="awful" title="Awful">😢</button>
+                <button class="mood-btn" data-mood="bad" title="Bad">🙁</button>
+                <button class="mood-btn" data-mood="neutral" title="Neutral">😐</button>
+                <button class="mood-btn" data-mood="good" title="Good">🙂</button>
+                <button class="mood-btn" data-mood="excellent" title="Excellent">😁</button>
+              </div>
+            </div>
+            
+            <textarea class="form-control" id="journal-editor-textarea" placeholder="How was your day? What did you learn? Write your thoughts here..."></textarea>
+            <p style="font-size:0.75rem; color:var(--text-muted); align-self: flex-end; margin-top:-10px;">✏️ Auto-saves as you type</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. ANALYTICS SECTION -->
+      <section id="analytics-section" class="page-section">
+        <div class="header-container">
+          <div>
+            <h1>Analytics Insights</h1>
+            <p class="subtitle">Understand your patterns and streak history</p>
+          </div>
+        </div>
+
+        <div class="analytics-grid">
+          <div class="card chart-card">
+            <h3>Habit Completion (Past 7 Days)</h3>
+            <div class="chart-container">
+              <canvas id="habitsChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <h3>Goal Milestones Status</h3>
+            <div class="chart-container">
+              <canvas id="goalsChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card chart-card" style="grid-column: 1 / -1;">
+            <h3>Mood Trend (Last 7 Entries)</h3>
+            <div class="chart-container">
+              <canvas id="moodChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. SETTINGS SECTION -->
+      <section id="settings-section" class="page-section">
+        <div class="header-container">
+          <div>
+            <h1>App Settings</h1>
+            <p class="subtitle">Manage profiles, data backups, and GitHub sync</p>
+          </div>
+        </div>
+
+        <div class="settings-container">
+          <!-- Profile Card -->
+          <div class="card settings-card">
+            <span class="settings-section-title">User Profile</span>
+            <form id="profile-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="profile-name-input">Display Name</label>
+                  <input type="text" class="form-control" id="profile-name-input" placeholder="e.g. Somchai">
+                </div>
+                <div class="form-group">
+                  <label for="profile-title-input">Sub-title / Focus</label>
+                  <input type="text" class="form-control" id="profile-title-input" placeholder="e.g. Software Dev & Fitness Enthusiast">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">Save Profile</button>
+            </form>
+          </div>
+
+          <!-- Local Backup & Restore -->
+          <div class="card settings-card">
+            <span class="settings-section-title">Local Database Backups</span>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
+              Your data is stored securely in this browser's local cache. Download a manual backup to your PC or upload a previous file to restore it.
+            </p>
+            <div style="display:flex; gap:16px; align-items:center;">
+              <button class="btn btn-secondary" id="export-backup-btn">
+                <i class="lucide-download"></i> Export Data Backup (.json)
+              </button>
+              
+              <div style="position:relative;">
+                <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">
+                  <i class="lucide-upload"></i> Import Data Backup
+                </button>
+                <input type="file" id="import-file-input" accept=".json" style="display:none;">
+              </div>
+            </div>
+          </div>
+
+          <!-- GitHub Gist Cloud Sync -->
+          <div class="card settings-card">
+            <span class="settings-section-title">GitHub Gist Cloud Sync (Optional)</span>
+            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:12px;">
+              Provide a GitHub Personal Access Token to save and sync data to a private Gist. This lets you access your data on multiple devices or make secure cloud copies.
+            </p>
+            <form id="sync-form">
+              <div class="form-group">
+                <label for="github-token-input">GitHub Personal Access Token (classic, with 'gist' scope)</label>
+                <input type="password" class="form-control" id="github-token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+              </div>
+              <div class="form-group">
+                <label for="gist-id-input">Gist ID (leave blank to create a new one automatically)</label>
+                <input type="text" class="form-control" id="gist-id-input" placeholder="e.g. 5d5a7114674fc5c2ef40b...">
+              </div>
+              <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="auto-sync-checkbox" style="width:16px; height:16px; cursor:pointer;">
+                <label for="auto-sync-checkbox" style="margin-bottom:0; cursor:pointer;">Enable Auto-Sync (saves to Gist automatically on changes)</label>
+              </div>
+
+              <div style="display:flex; gap:12px; align-items:center; margin-top:20px;">
+                <button type="submit" class="btn btn-secondary">Save Sync Settings</button>
+                <button type="button" class="btn btn-primary" id="sync-now-btn">Sync Now</button>
+                <button type="button" class="btn btn-secondary" id="pull-now-btn">Pull Data</button>
+              </div>
+            </form>
+            <div id="sync-status-msg" class="sync-status"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- --- MODALS --- -->
+
+  <!-- A. Add Habit Modal -->
+  <div class="modal-overlay" id="habit-modal">
+    <div class="card modal-container">
+      <div class="modal-header">
+        <span class="modal-title">Define New Habit</span>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="habit-form">
+        <div class="form-group">
+          <label for="habit-name-input">Habit Name</label>
+          <input type="text" class="form-control" id="habit-name-input" required placeholder="e.g. Meditate for 10 mins">
+        </div>
+        <div class="form-group">
+          <label for="habit-category-input">Category</label>
+          <input type="text" class="form-control" id="habit-category-input" placeholder="e.g. Mind, Health, Career, Routine">
+        </div>
+        <div style="display:flex; justify-content: flex-end; gap:12px; margin-top:28px;">
+          <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Habit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- B. Add Goal Modal -->
+  <div class="modal-overlay" id="goal-modal">
+    <div class="card modal-container" style="max-width: 580px;">
+      <div class="modal-header">
+        <span class="modal-title">Set New Goal</span>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="goal-form">
+        <div class="form-group">
+          <label for="goal-title-input">Goal Title</label>
+          <input type="text" class="form-control" id="goal-title-input" required placeholder="e.g. Read 12 Books in 2026">
+        </div>
+        <div class="form-group">
+          <label for="goal-desc-input">Description / Details</label>
+          <textarea class="form-control" id="goal-desc-input" placeholder="Why is this goal important? What are the key details?"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="goal-category-input">Category</label>
+            <input type="text" class="form-control" id="goal-category-input" placeholder="e.g. Career, Mindset, Fitness">
+          </div>
+          <div class="form-group">
+            <label for="goal-date-input">Deadline Target</label>
+            <input type="date" class="form-control" id="goal-date-input">
+          </div>
+        </div>
+        
+        <!-- Milestones list creator -->
+        <div class="form-group" style="margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="margin-bottom:0;">Key Milestones</label>
+            <button type="button" class="btn btn-secondary" id="add-milestone-input-btn" style="font-size:0.75rem; padding:4px 8px; border-radius:4px;">
+              + Add Milestone
+            </button>
+          </div>
+          <div id="milestone-inputs-container">
+            <input type="text" class="form-control milestone-input-field" placeholder="Milestone 1 title" style="margin-bottom:8px;">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content: flex-end; gap:12px; margin-top:28px;">
+          <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- --- JAVASCRIPT INJECTION --- -->
+  <script src="js/storage.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
