@@ -241,6 +241,24 @@ document.addEventListener('DOMContentLoaded', () => {
         navigate(sectionId);
       });
     });
+
+    const fab = document.getElementById('page-fab');
+    if (fab) {
+      fab.addEventListener('click', () => {
+        const action = fab.getAttribute('data-action');
+        if (action === 'add-habit') {
+          if (typeof resetHabitFormForCreate === 'function') {
+            resetHabitFormForCreate();
+          }
+          openModal('habit-modal');
+        } else if (action === 'add-goal') {
+          if (typeof resetGoalFormForCreate === 'function') {
+            resetGoalFormForCreate();
+          }
+          openModal('goal-modal');
+        }
+      });
+    }
   }
 
   function navigate(sectionId) {
@@ -275,6 +293,23 @@ document.addEventListener('DOMContentLoaded', () => {
       renderAnalytics();
     } else if (sectionId === 'settings') {
       populateSettingsForm();
+    }
+
+    updatePageFab(sectionId);
+  }
+
+  function updatePageFab(sectionId) {
+    const fab = document.getElementById('page-fab');
+    if (!fab) return;
+    if (sectionId === 'habits') {
+      fab.hidden = false;
+      fab.setAttribute('data-action', 'add-habit');
+    } else if (sectionId === 'goals') {
+      fab.hidden = false;
+      fab.setAttribute('data-action', 'add-goal');
+    } else {
+      fab.hidden = true;
+      fab.removeAttribute('data-action');
     }
   }
 
