@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Check for daily reset
     checkDailyReset();
+    setupHabitTimerRuntime();
     
     // Render current view
     navigate('dashboard');
@@ -121,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- SAVE & AUTO SYNC FIRESTORE ---
   let firestoreSyncTimeout = null;
+  let habitTimerInterval = null;
   function saveAndSync() {
     window.AscendStorage.save(appData);
     
@@ -174,6 +176,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('en-US', options);
+  }
+
+  function formatTimer(totalSeconds) {
+    const safeSeconds = Math.max(0, Math.ceil(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  function parseDurationMinutes(text) {
+    const raw = String(text || '').toLowerCase();
+    const thaiHour = raw.match(/(\d+(?:\.\d+)?)\s*ชั่วโมง/);
+    if (thaiHour) return Number(thaiHour[1]) * 60;
+    const thaiMin = raw.match(/(\d+(?:\.\d+)?)\s*นาที/);
+    if (thaiMin) return Number(thaiMin[1]);
+    const hour = raw.match(/(\d+(?:\.\d+)?)\s*(?:hour|hr|hrs|h)\b/);
+    if (hour) return Number(hour[1]) * 60;
+    const minute = raw.match(/(\d+(?:\.\d+)?)\s*(?:minute|min|mins|m)\b/);
+    if (minute) return Number(minute[1]);
+    return 0;
+  }
+
+  function getHabitDurationMinutes(habit) {
+    return Number(habit.timerMinutes) || parseDurationMinutes(habit.name) || 60;
+  }
+
+  function isTimedHabit(habit) {
+    return habit.habitType === 'timer' || Number(habit.timerMinutes) > 0 || parseDurationMinutes(habit.name) > 0;
+  }
+
+  function getRunningTimerRemainingSeconds(habit) {
+    if (!habit.timerEndsAt) return 0;
+    return Math.max(0, Math.ceil((new Date(habit.timerEndsAt).getTime() - Date.now()) / 1000));
   }
 
   function getCurrentWeekDates() {
@@ -503,6 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="habit-stat-lbl">Total</span>
           </div>
         </div>
+        ${buildHabitTimerHtml(habit, today)}
         <div>
           <div class="week-tracker-label">Weekly Check-in</div>
           <div class="week-tracker-row">
@@ -523,6 +563,16 @@ document.addEventListener('DOMContentLoaded', () => {
       card.querySelector('.edit-btn').addEventListener('click', () => {
         openHabitEditor(habit.id);
       });
+
+      const timerStartBtn = card.querySelector('.timer-start-btn');
+      if (timerStartBtn) {
+        timerStartBtn.addEventListener('click', () => startHabitTimer(habit.id));
+      }
+
+      const timerResetBtn = card.querySelector('.timer-reset-btn');
+      if (timerResetBtn) {
+        timerResetBtn.addEventListener('click', () => resetHabitTimer(habit.id));
+      }
 
       card.querySelector('.delete-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this habit? All log history will be deleted.')) {
@@ -795,6 +845,113 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function requestTimerNotificationPermission() {
+    if (!('Notification' in window)) return Promise.resolve('unsupported');
+    if (Notification.permission === 'granted') return Promise.resolve('granted');
+    if (Notification.permission === 'denied') return Promise.resolve('denied');
+    return Notification.requestPermission();
+  }
+
+  function notifyTimerComplete(habit) {
+    const message = `${habit.name} is complete. Nice work!`;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Timer complete', { body: message });
+    } else {
+      alert(`Timer complete: ${habit.name}`);
+    }
+  }
+
+  function refreshTimerViews() {
+    const activeSection = document.querySelector('.page-section.active')?.id;
+    if (activeSection === 'habits-section') renderHabits();
+    if (activeSection === 'dashboard-section') renderDashboard();
+  }
+
+  function completeTimedHabit(habit, shouldNotify = true) {
+    if (!habit.logs) habit.logs = {};
+    habit.logs[getTodayStr()] = true;
+    delete habit.timerStartedAt;
+    delete habit.timerEndsAt;
+    delete habit.timerDurationSeconds;
+    habit.updatedAt = new Date().toISOString();
+    saveAndSync();
+    updateAllStreaks();
+    if (shouldNotify) notifyTimerComplete(habit);
+    refreshTimerViews();
+  }
+
+  function checkHabitTimers() {
+    let changed = false;
+    appData.habits.forEach(habit => {
+      if (habit.timerEndsAt && Date.now() >= new Date(habit.timerEndsAt).getTime()) {
+        completeTimedHabit(habit, true);
+        changed = true;
+      }
+    });
+    if (changed) refreshTimerViews();
+  }
+
+  function setupHabitTimerRuntime() {
+    checkHabitTimers();
+    clearInterval(habitTimerInterval);
+    habitTimerInterval = setInterval(checkHabitTimers, 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkHabitTimers();
+    });
+    window.addEventListener('focus', checkHabitTimers);
+  }
+
+  async function startHabitTimer(habitId) {
+    const habit = appData.habits.find(h => h.id === habitId);
+    if (!habit) return;
+    await requestTimerNotificationPermission();
+    const durationSeconds = Math.max(1, Math.round(getHabitDurationMinutes(habit) * 60));
+    const now = Date.now();
+    habit.habitType = 'timer';
+    habit.timerMinutes = getHabitDurationMinutes(habit);
+    habit.timerStartedAt = new Date(now).toISOString();
+    habit.timerEndsAt = new Date(now + durationSeconds * 1000).toISOString();
+    habit.timerDurationSeconds = durationSeconds;
+    saveAndSync();
+    renderHabits();
+  }
+
+  function resetHabitTimer(habitId) {
+    const habit = appData.habits.find(h => h.id === habitId);
+    if (!habit) return;
+    delete habit.timerStartedAt;
+    delete habit.timerEndsAt;
+    delete habit.timerDurationSeconds;
+    habit.updatedAt = new Date().toISOString();
+    saveAndSync();
+    renderHabits();
+  }
+
+  function buildHabitTimerHtml(habit, today) {
+    if (!isTimedHabit(habit)) return '';
+    const isRunning = !!habit.timerEndsAt;
+    const completedToday = !!(habit.logs && habit.logs[today]);
+    const remaining = getRunningTimerRemainingSeconds(habit);
+    const durationMinutes = getHabitDurationMinutes(habit);
+    const statusText = isRunning
+      ? `Running · ${formatTimer(remaining)} left`
+      : completedToday
+        ? 'Completed today'
+        : `${Number(durationMinutes.toFixed(2))} min focus timer`;
+    return `
+      <div class="habit-timer-panel ${isRunning ? 'running' : ''} ${completedToday ? 'completed' : ''}">
+        <div class="habit-timer-meta">
+          <span class="habit-timer-label">Timer</span>
+          <span class="habit-timer-time" data-timer-habit-id="${habit.id}">${statusText}</span>
+        </div>
+        <div class="habit-timer-actions">
+          <button class="btn btn-primary timer-start-btn" data-id="${habit.id}" ${isRunning ? 'disabled' : ''}>${completedToday ? 'Start again' : 'Start timer'}</button>
+          ${isRunning ? `<button class="btn btn-secondary timer-reset-btn" data-id="${habit.id}">Stop</button>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
   function toggleMilestone(goalId, milestoneId) {
     const goal = appData.goals.find(g => g.id === goalId);
     if (!goal) return;
@@ -886,11 +1043,23 @@ document.addEventListener('DOMContentLoaded', () => {
     select.value = selectedGoalId || '';
   }
 
+  function updateHabitDurationVisibility() {
+    const typeInput = document.getElementById('habit-type-input');
+    const durationGroup = document.getElementById('habit-duration-group');
+    if (!typeInput || !durationGroup) return;
+    durationGroup.style.display = typeInput.value === 'timer' ? 'block' : 'none';
+  }
+
   function resetHabitFormForCreate() {
     editingHabitId = null;
     const form = document.getElementById('habit-form');
     if (form) form.reset();
     populateHabitGoalSelect('');
+    const typeInput = document.getElementById('habit-type-input');
+    const durationInput = document.getElementById('habit-duration-input');
+    if (typeInput) typeInput.value = 'checkin';
+    if (durationInput) durationInput.value = 60;
+    updateHabitDurationVisibility();
     setHabitModalMode('create');
   }
 
@@ -914,6 +1083,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('habit-name-input').value = habit.name || '';
     document.getElementById('habit-category-input').value = habit.category || '';
     populateHabitGoalSelect(habit.linkedGoalId || '');
+    const typeInput = document.getElementById('habit-type-input');
+    const durationInput = document.getElementById('habit-duration-input');
+    if (typeInput) typeInput.value = isTimedHabit(habit) ? 'timer' : 'checkin';
+    if (durationInput) durationInput.value = getHabitDurationMinutes(habit);
+    updateHabitDurationVisibility();
     setHabitModalMode('edit');
     openModal('habit-modal');
   }
@@ -988,12 +1162,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const habitForm = document.getElementById('habit-form');
+    const habitTypeInput = document.getElementById('habit-type-input');
+    if (habitTypeInput) {
+      habitTypeInput.addEventListener('change', updateHabitDurationVisibility);
+      updateHabitDurationVisibility();
+    }
     if (habitForm) {
       habitForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = document.getElementById('habit-name-input').value;
         const category = document.getElementById('habit-category-input').value;
         const linkedGoalId = document.getElementById('habit-goal-link-input').value;
+        const habitType = document.getElementById('habit-type-input').value;
+        const timerMinutes = Math.max(0.01, Number(document.getElementById('habit-duration-input').value) || 60);
         
         if (!name) return;
 
@@ -1003,6 +1184,15 @@ document.addEventListener('DOMContentLoaded', () => {
           habit.name = name;
           habit.category = category || 'Personal';
           habit.linkedGoalId = linkedGoalId;
+          habit.habitType = habitType;
+          if (habitType === 'timer') {
+            habit.timerMinutes = timerMinutes;
+          } else {
+            delete habit.timerMinutes;
+            delete habit.timerStartedAt;
+            delete habit.timerEndsAt;
+            delete habit.timerDurationSeconds;
+          }
           habit.updatedAt = new Date().toISOString();
           editingHabitId = null;
         } else {
@@ -1011,6 +1201,8 @@ document.addEventListener('DOMContentLoaded', () => {
             name: name,
             category: category || 'Personal',
             linkedGoalId: linkedGoalId,
+            habitType: habitType,
+            ...(habitType === 'timer' ? { timerMinutes: timerMinutes } : {}),
             streak: 0,
             maxStreak: 0,
             logs: {},
