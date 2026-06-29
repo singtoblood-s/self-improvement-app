@@ -12,6 +12,7 @@ const DEFAULT_DATA = {
       streak: 0,
       maxStreak: 0,
       logs: {},
+      timerSessions: [],
       createdAt: new Date().toISOString()
     },
     {
@@ -21,6 +22,7 @@ const DEFAULT_DATA = {
       streak: 0,
       maxStreak: 0,
       logs: {},
+      timerSessions: [],
       createdAt: new Date().toISOString()
     },
     {
@@ -30,6 +32,7 @@ const DEFAULT_DATA = {
       streak: 0,
       maxStreak: 0,
       logs: {},
+      timerSessions: [],
       createdAt: new Date().toISOString()
     }
   ],

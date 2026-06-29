@@ -41,8 +41,21 @@ const AscendAnalytics = {
     }
 
     this.renderHabitsChart(data);
+    this.renderFocusChart(data);
     this.renderGoalsChart(data);
     this.renderMoodChart(data);
+  },
+
+  getDailyFocusMinutes(data, dateStr) {
+    let totalSeconds = 0;
+    (data.habits || []).forEach(habit => {
+      (habit.timerSessions || []).forEach(session => {
+        if (session.date === dateStr) {
+          totalSeconds += Number(session.actualSeconds) || 0;
+        }
+      });
+    });
+    return Math.round(totalSeconds / 60);
   },
 
   // 1. Habit Completion Rates (Last 7 Days)
@@ -107,6 +120,64 @@ const AscendAnalytics = {
             max: 100,
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
             ticks: { color: '#94a3b8' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#94a3b8' }
+          }
+        }
+      }
+    });
+  },
+
+  renderFocusChart(data) {
+    const canvas = document.getElementById('focusChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const past7Days = this.getPast7Dates();
+    const labels = past7Days.map(date => this.getWeekdayLabel(date));
+    const focusMinutes = past7Days.map(date => this.getDailyFocusMinutes(data, date));
+
+    if (this.charts.focus) {
+      this.charts.focus.destroy();
+    }
+
+    this.charts.focus = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Focus minutes',
+          data: focusMinutes,
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139, 92, 246, 0.14)',
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: '#8b5cf6',
+          pointBorderColor: '#ffffff',
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.raw} focus min`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#94a3b8',
+              callback: (val) => `${val}m`
+            }
           },
           x: {
             grid: { display: false },

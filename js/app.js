@@ -18,10 +18,129 @@ document.addEventListener('DOMContentLoaded', () => {
   // Edit Modal State
   let editingHabitId = null;
   let editingGoalId = null;
+  let toastHideTimers = new WeakMap();
+  let confirmResolver = null;
+
+  function normalizeAppData() {
+    let changed = false;
+    if (!Array.isArray(appData.habits)) {
+      appData.habits = [];
+      changed = true;
+    }
+    if (!Array.isArray(appData.goals)) {
+      appData.goals = [];
+      changed = true;
+    }
+    if (!Array.isArray(appData.journal)) {
+      appData.journal = [];
+      changed = true;
+    }
+
+    appData.habits.forEach(habit => {
+      if (!habit.logs || typeof habit.logs !== 'object') {
+        habit.logs = {};
+        changed = true;
+      }
+      if (!Array.isArray(habit.timerSessions)) {
+        habit.timerSessions = [];
+        changed = true;
+      }
+      if (habit.timerElapsedSeconds != null) {
+        const normalizedElapsed = Number(habit.timerElapsedSeconds);
+        if (Number.isFinite(normalizedElapsed) && normalizedElapsed >= 0) {
+          if (normalizedElapsed != habit.timerElapsedSeconds) {
+            habit.timerElapsedSeconds = normalizedElapsed;
+            changed = true;
+          }
+        } else {
+          delete habit.timerElapsedSeconds;
+          changed = true;
+        }
+      }
+      if (habit.timerPlannedSeconds != null) {
+        const normalizedPlanned = Number(habit.timerPlannedSeconds);
+        if (Number.isFinite(normalizedPlanned) && normalizedPlanned > 0) {
+          if (normalizedPlanned != habit.timerPlannedSeconds) {
+            habit.timerPlannedSeconds = normalizedPlanned;
+            changed = true;
+          }
+        } else {
+          delete habit.timerPlannedSeconds;
+          changed = true;
+        }
+      }
+    });
+
+    return changed;
+  }
+
+  function syncBodyScrollLock() {
+    const hasActiveModal = !!document.querySelector('.modal-overlay.active');
+    document.body.style.overflow = hasActiveModal ? 'hidden' : '';
+  }
+
+  function showToast(message, type = 'info', options = {}) {
+    const stack = document.getElementById('toast-stack');
+    if (!stack || !message) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`.trim();
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.textContent = message;
+    stack.appendChild(toast);
+
+    const duration = Number(options.duration ?? (type === 'error' ? 5200 : 3200));
+    const timer = setTimeout(() => {
+      toast.remove();
+      toastHideTimers.delete(toast);
+    }, duration);
+    toastHideTimers.set(toast, timer);
+
+    toast.addEventListener('click', () => {
+      const activeTimer = toastHideTimers.get(toast);
+      if (activeTimer) clearTimeout(activeTimer);
+      toast.remove();
+      toastHideTimers.delete(toast);
+    });
+  }
+
+  function confirmAction({ title = 'Confirm action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = true } = {}) {
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-modal-title');
+    const messageEl = document.getElementById('confirm-modal-message');
+    const confirmBtn = document.getElementById('confirm-approve-btn');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    if (!modal || !titleEl || !messageEl || !confirmBtn || !cancelBtn) return Promise.resolve(false);
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    confirmBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    confirmBtn.classList.toggle('btn-danger', !!danger);
+    confirmBtn.classList.toggle('btn-primary', !danger);
+
+    openModal('confirm-modal');
+
+    return new Promise((resolve) => {
+      confirmResolver = resolve;
+      cancelBtn.focus();
+    });
+  }
+
+  function resolveConfirm(result) {
+    if (typeof confirmResolver === 'function') {
+      const resolver = confirmResolver;
+      confirmResolver = null;
+      resolver(result);
+    }
+  }
 
   // --- INIT ---
   function init() {
     appData = window.AscendStorage.load();
+    if (normalizeAppData()) {
+      window.AscendStorage.save(appData);
+    }
     setupRouting();
     setupEventListeners();
     setupAuthListeners();
@@ -215,6 +334,104 @@ document.addEventListener('DOMContentLoaded', () => {
     return Math.max(0, Math.ceil((new Date(habit.timerEndsAt).getTime() - Date.now()) / 1000));
   }
 
+  function ensureHabitTimerSessions(habit) {
+    if (!Array.isArray(habit.timerSessions)) habit.timerSessions = [];
+    return habit.timerSessions;
+  }
+
+  function getHabitElapsedSeconds(habit, nowTs = Date.now()) {
+    let elapsed = Number(habit.timerElapsedSeconds) || 0;
+    if (habit.timerStartedAt) {
+      elapsed += Math.max(0, Math.round((nowTs - new Date(habit.timerStartedAt).getTime()) / 1000));
+    }
+    return Math.max(0, elapsed);
+  }
+
+  function getHabitLastTimerSession(habit) {
+    const sessions = ensureHabitTimerSessions(habit);
+    return sessions.length > 0 ? sessions[0] : null;
+  }
+
+  function getHabitFocusSecondsForDate(habit, dateStr) {
+    return ensureHabitTimerSessions(habit)
+      .filter(session => session.date === dateStr)
+      .reduce((sum, session) => sum + (Number(session.actualSeconds) || 0), 0);
+  }
+
+  function formatFocusDuration(totalSeconds) {
+    const safeSeconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+    if (safeSeconds >= 3600) {
+      const hours = Math.floor(safeSeconds / 3600);
+      const minutes = Math.round((safeSeconds % 3600) / 60);
+      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+    if (safeSeconds >= 60) {
+      return `${Math.round(safeSeconds / 60)} min`;
+    }
+    return `${safeSeconds} sec`;
+  }
+
+  function formatTimerSessionStatus(status) {
+    return status === 'completed' ? 'completed' : 'stopped early';
+  }
+
+  function getDailyFocusSummary(dateStr) {
+    let totalSeconds = 0;
+    let sessionCount = 0;
+    let bestSeconds = 0;
+
+    appData.habits.forEach(habit => {
+      ensureHabitTimerSessions(habit).forEach(session => {
+        if (session.date !== dateStr) return;
+        const actualSeconds = Number(session.actualSeconds) || 0;
+        totalSeconds += actualSeconds;
+        sessionCount += 1;
+        if (actualSeconds > bestSeconds) bestSeconds = actualSeconds;
+      });
+    });
+
+    return { totalSeconds, sessionCount, bestSeconds };
+  }
+
+  function clearHabitTimerRuntimeState(habit) {
+    delete habit.timerStartedAt;
+    delete habit.timerEndsAt;
+    delete habit.timerDurationSeconds;
+    delete habit.timerPaused;
+    delete habit.timerRemainingSeconds;
+    delete habit.timerSessionStartedAt;
+    delete habit.timerElapsedSeconds;
+    delete habit.timerPlannedSeconds;
+  }
+
+  function finalizeHabitTimerSession(habit, status, nowTs = Date.now()) {
+    const actualSeconds = getHabitElapsedSeconds(habit, nowTs);
+    const hadSessionState = !!(habit.timerSessionStartedAt || habit.timerStartedAt || habit.timerRemainingSeconds != null || habit.timerElapsedSeconds != null);
+    if (!hadSessionState || actualSeconds <= 0) {
+      clearHabitTimerRuntimeState(habit);
+      return null;
+    }
+
+    const plannedSeconds = Math.max(1, Math.round(Number(habit.timerPlannedSeconds) || Number(habit.timerDurationSeconds) || (getHabitDurationMinutes(habit) * 60)));
+    const startedAt = habit.timerSessionStartedAt || habit.timerStartedAt || new Date(nowTs - actualSeconds * 1000).toISOString();
+    const endedAt = new Date(nowTs).toISOString();
+    const sessions = ensureHabitTimerSessions(habit);
+    const session = {
+      id: `ts_${nowTs}_${Math.random().toString(36).slice(2, 8)}`,
+      startedAt,
+      endedAt,
+      plannedSeconds,
+      actualSeconds,
+      status,
+      date: endedAt.split('T')[0]
+    };
+
+    sessions.unshift(session);
+    if (sessions.length > 60) sessions.length = 60;
+    clearHabitTimerRuntimeState(habit);
+    return session;
+  }
+
   function getCurrentWeekDates() {
     const today = new Date();
     const day = today.getDay();
@@ -304,11 +521,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sectionId === 'habits') {
       fab.hidden = false;
       fab.setAttribute('data-action', 'add-habit');
+      fab.setAttribute('aria-label', 'Add habit');
     } else if (sectionId === 'goals') {
       fab.hidden = false;
       fab.setAttribute('data-action', 'add-goal');
+      fab.setAttribute('aria-label', 'Add goal');
     } else {
       fab.hidden = true;
+      fab.setAttribute('aria-label', 'Add item');
       fab.removeAttribute('data-action');
     }
   }
@@ -409,6 +629,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('metric-habits-rate').textContent = `${completionRate}%`;
     document.getElementById('metric-goals-active').textContent = activeGoals;
     document.getElementById('metric-highest-streak').textContent = `${highestStreak} days`;
+
+    const focusSummary = getDailyFocusSummary(today);
+    const focusTodayEl = document.getElementById('metric-focus-today');
+    const focusBestEl = document.getElementById('metric-focus-best');
+    const focusBadgeEl = document.getElementById('focus-summary-badge');
+    const focusNoteEl = document.getElementById('focus-summary-note');
+    if (focusTodayEl) focusTodayEl.textContent = formatFocusDuration(focusSummary.totalSeconds);
+    if (focusBestEl) focusBestEl.textContent = formatFocusDuration(focusSummary.bestSeconds);
+    if (focusBadgeEl) focusBadgeEl.textContent = `${focusSummary.sessionCount} session${focusSummary.sessionCount === 1 ? '' : 's'}`;
+    if (focusNoteEl) {
+      focusNoteEl.textContent = focusSummary.sessionCount > 0
+        ? `You focused ${formatFocusDuration(focusSummary.totalSeconds)} across ${focusSummary.sessionCount} session${focusSummary.sessionCount === 1 ? '' : 's'} today.`
+        : 'No focus sessions logged yet.';
+    }
 
     const circle = document.getElementById('dash-progress-circle');
     if (circle) {
@@ -551,11 +785,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="habit-meta">${habit.category || 'Personal'}${habit.linkedGoalId && getGoalTitle(habit.linkedGoalId) ? ' · 🎯 ' + getGoalTitle(habit.linkedGoalId) : ''}</span>
           </div>
           <div class="habit-actions">
-            <button class="checkin-btn ${(habit.logs && habit.logs[today]) ? 'checked' : ''}" data-id="${habit.id}" title="Check in">
+            <button class="checkin-btn ${(habit.logs && habit.logs[today]) ? 'checked' : ''}" data-id="${habit.id}" title="Check in" aria-label="${(habit.logs && habit.logs[today]) ? 'Mark habit incomplete' : 'Mark habit complete'}: ${escapeAttribute(habit.name)}">
               ✓
             </button>
-            <button class="action-icon-btn edit-btn" title="Edit" data-id="${habit.id}">✎</button>
-            <button class="action-icon-btn delete-btn" title="Delete" data-id="${habit.id}">×</button>
+            <button class="action-icon-btn edit-btn" title="Edit habit" aria-label="Edit habit ${escapeAttribute(habit.name)}" data-id="${habit.id}">✎</button>
+            <button class="action-icon-btn delete-btn" title="Delete habit" aria-label="Delete habit ${escapeAttribute(habit.name)}" data-id="${habit.id}">×</button>
           </div>
         </div>
         <div class="habit-compact-row">
@@ -623,9 +857,15 @@ document.addEventListener('DOMContentLoaded', () => {
         timerResetBtn.addEventListener('click', () => resetHabitTimer(habit.id));
       }
 
-      card.querySelector('.delete-btn').addEventListener('click', () => {
-        if (confirm('Are you sure you want to delete this habit? All log history will be deleted.')) {
+      card.querySelector('.delete-btn').addEventListener('click', async () => {
+        const approved = await confirmAction({
+          title: 'Delete habit?',
+          message: 'Are you sure you want to delete this habit? All log history will be deleted.',
+          confirmText: 'Delete habit'
+        });
+        if (approved) {
           deleteHabit(habit.id);
+          showToast('Habit deleted.', 'success');
         }
       });
 
@@ -703,11 +943,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="goal-card-title">${goal.title}</span>
           </div>
           <div class="goal-actions">
-            <button class="checkin-btn ${goal.status === 'completed' ? 'checked' : ''}" data-id="${goal.id}" title="${goal.status === 'completed' ? 'Reopen' : 'Complete'}">
+            <button class="checkin-btn ${goal.status === 'completed' ? 'checked' : ''}" data-id="${goal.id}" title="${goal.status === 'completed' ? 'Reopen' : 'Complete'}" aria-label="${goal.status === 'completed' ? 'Reopen goal' : 'Complete goal'}: ${escapeAttribute(goal.title)}">
               ${goal.status === 'completed' ? '↺' : '✓'}
             </button>
-            <button class="action-icon-btn edit-btn" title="Edit" data-id="${goal.id}">✎</button>
-            <button class="action-icon-btn delete-btn" title="Delete" data-id="${goal.id}">×</button>
+            <button class="action-icon-btn edit-btn" title="Edit goal" aria-label="Edit goal ${escapeAttribute(goal.title)}" data-id="${goal.id}">✎</button>
+            <button class="action-icon-btn delete-btn" title="Delete goal" aria-label="Delete goal ${escapeAttribute(goal.title)}" data-id="${goal.id}">×</button>
           </div>
         </div>
 
@@ -755,9 +995,15 @@ document.addEventListener('DOMContentLoaded', () => {
         openGoalEditor(goal.id);
       });
 
-      card.querySelector('.delete-btn').addEventListener('click', () => {
-        if (confirm('Are you sure you want to delete this goal and its milestones?')) {
+      card.querySelector('.delete-btn').addEventListener('click', async () => {
+        const approved = await confirmAction({
+          title: 'Delete goal?',
+          message: 'Are you sure you want to delete this goal and its milestones?',
+          confirmText: 'Delete goal'
+        });
+        if (approved) {
           deleteGoal(goal.id);
+          showToast('Goal deleted.', 'success');
         }
       });
 
@@ -897,9 +1143,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const message = `${habit.name} is complete. Nice work!`;
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('Timer complete', { body: message });
-    } else {
-      alert(`Timer complete: ${habit.name}`);
     }
+    showToast(`Timer complete: ${habit.name}`, 'success', { duration: 5000 });
   }
 
   function refreshTimerViews() {
@@ -933,13 +1178,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function completeTimedHabit(habit, shouldNotify = true) {
+    finalizeHabitTimerSession(habit, 'completed');
     if (!habit.logs) habit.logs = {};
     habit.logs[getTodayStr()] = true;
-    delete habit.timerStartedAt;
-    delete habit.timerEndsAt;
-    delete habit.timerDurationSeconds;
-    delete habit.timerPaused;
-    delete habit.timerRemainingSeconds;
     habit.updatedAt = new Date().toISOString();
     saveAndSync();
     updateAllStreaks();
@@ -980,11 +1221,17 @@ document.addEventListener('DOMContentLoaded', () => {
       durationSeconds = Math.max(1, Math.round(habit.timerRemainingSeconds));
     } else {
       durationSeconds = Math.max(1, Math.round(getHabitDurationMinutes(habit) * 60));
+      habit.timerElapsedSeconds = 0;
+      habit.timerSessionStartedAt = null;
     }
     const now = Date.now();
+    if (!fromRemaining || !habit.timerSessionStartedAt) {
+      habit.timerSessionStartedAt = new Date(now).toISOString();
+    }
+    habit.timerPlannedSeconds = Math.max(1, Math.round(getHabitDurationMinutes(habit) * 60));
     habit.timerStartedAt = new Date(now).toISOString();
     habit.timerEndsAt = new Date(now + durationSeconds * 1000).toISOString();
-    habit.timerDurationSeconds = durationSeconds;
+    habit.timerDurationSeconds = habit.timerPlannedSeconds;
     delete habit.timerPaused;
     delete habit.timerRemainingSeconds;
     habit.updatedAt = new Date().toISOString();
@@ -996,6 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const habit = appData.habits.find(h => h.id === habitId);
     if (!habit || !habit.timerEndsAt || habit.timerPaused) return;
     const remaining = getRunningTimerRemainingSeconds(habit);
+    habit.timerElapsedSeconds = getHabitElapsedSeconds(habit);
     habit.timerRemainingSeconds = remaining;
     habit.timerPaused = true;
     delete habit.timerStartedAt;
@@ -1008,11 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function stopHabitTimer(habitId) {
     const habit = appData.habits.find(h => h.id === habitId);
     if (!habit) return;
-    delete habit.timerStartedAt;
-    delete habit.timerEndsAt;
-    delete habit.timerDurationSeconds;
-    delete habit.timerPaused;
-    delete habit.timerRemainingSeconds;
+    finalizeHabitTimerSession(habit, 'stopped');
     habit.updatedAt = new Date().toISOString();
     saveAndSync();
     renderHabits();
@@ -1021,11 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetHabitTimer(habitId) {
     const habit = appData.habits.find(h => h.id === habitId);
     if (!habit) return;
-    delete habit.timerStartedAt;
-    delete habit.timerEndsAt;
-    delete habit.timerDurationSeconds;
-    delete habit.timerPaused;
-    delete habit.timerRemainingSeconds;
+    finalizeHabitTimerSession(habit, 'stopped');
     habit.updatedAt = new Date().toISOString();
     saveAndSync();
     renderHabits();
@@ -1041,6 +1281,14 @@ document.addEventListener('DOMContentLoaded', () => {
       ? getRunningTimerRemainingSeconds(habit)
       : (Number(habit.timerRemainingSeconds) || 0);
     const durationMinutes = getHabitDurationMinutes(habit);
+    const todayFocusSeconds = getHabitFocusSecondsForDate(habit, today);
+    const lastSession = getHabitLastTimerSession(habit);
+    const sessionSummaryParts = [];
+    if (todayFocusSeconds > 0) sessionSummaryParts.push(`Today ${formatFocusDuration(todayFocusSeconds)}`);
+    if (lastSession) sessionSummaryParts.push(`Last ${formatFocusDuration(lastSession.actualSeconds)} ${formatTimerSessionStatus(lastSession.status)}`);
+    const sessionSummaryHtml = sessionSummaryParts.length > 0
+      ? `<div class="habit-timer-session-summary">${sessionSummaryParts.join(' • ')}</div>`
+      : '';
     const statusText = isRunning
       ? (isPaused ? `Paused · ${formatTimer(remaining)} left` : `Running · ${formatTimer(remaining)} left`)
       : isHeld
@@ -1062,11 +1310,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="habit-timer-time" data-timer-habit-id="${habit.id}">${statusText}</span>
         </div>
         <div class="habit-timer-actions">
-          <button class="btn btn-primary timer-start-btn" data-id="${habit.id}">${startLabel}</button>
-          ${isRunning || isHeld ? `<button class="btn btn-secondary timer-pause-btn" data-id="${habit.id}">${isRunning && !isPaused ? 'Pause' : 'Resume'}</button>` : ''}
-          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-stop-btn" data-id="${habit.id}">Stop</button>` : ''}
-          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-reset-btn" data-id="${habit.id}">Reset</button>` : ''}
+          <button class="btn btn-primary timer-start-btn" data-id="${habit.id}" aria-label="${startLabel} timer for ${escapeAttribute(habit.name)}">${startLabel}</button>
+          ${isRunning || isHeld ? `<button class="btn btn-secondary timer-pause-btn" data-id="${habit.id}" aria-label="${isRunning && !isPaused ? 'Pause' : 'Resume'} timer for ${escapeAttribute(habit.name)}">${isRunning && !isPaused ? 'Pause' : 'Resume'}</button>` : ''}
+          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-stop-btn" data-id="${habit.id}" aria-label="Stop timer for ${escapeAttribute(habit.name)}">Stop</button>` : ''}
+          ${isRunning || isHeld ? `<button class="btn btn-ghost timer-reset-btn" data-id="${habit.id}" aria-label="Reset timer for ${escapeAttribute(habit.name)}">Reset</button>` : ''}
         </div>
+        ${sessionSummaryHtml}
       </div>
     `;
   }
@@ -1126,8 +1375,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById(id);
     if (modal) {
       modal.classList.add('active');
-      // Prevent body scroll on mobile when modal is open
-      document.body.style.overflow = 'hidden';
+      modal.setAttribute('aria-hidden', 'false');
+      syncBodyScrollLock();
     }
   }
 
@@ -1244,6 +1493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById(id);
     if (modal) {
       modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
       if (id === 'habit-modal') {
         editingHabitId = null;
         setHabitModalMode('create');
@@ -1252,8 +1502,10 @@ document.addEventListener('DOMContentLoaded', () => {
         editingGoalId = null;
         setGoalModalMode('create');
       }
-      // Restore body scroll
-      document.body.style.overflow = '';
+      if (id === 'confirm-modal') {
+        resolveConfirm(false);
+      }
+      syncBodyScrollLock();
     }
   }
 
@@ -1264,7 +1516,7 @@ document.addEventListener('DOMContentLoaded', () => {
       profileCard.addEventListener('click', () => {
         const isConfigured = window.AscendStorage.isFirebaseConfigured();
         if (!isConfigured) {
-          alert('Please configure your Firebase Database in Settings first.');
+          showToast('Please configure your Firebase database in Settings first.', 'warning');
           navigate('settings');
           return;
         }
@@ -1314,9 +1566,7 @@ document.addEventListener('DOMContentLoaded', () => {
             habit.timerMinutes = timerMinutes;
           } else {
             delete habit.timerMinutes;
-            delete habit.timerStartedAt;
-            delete habit.timerEndsAt;
-            delete habit.timerDurationSeconds;
+            clearHabitTimerRuntimeState(habit);
           }
           habit.updatedAt = new Date().toISOString();
           editingHabitId = null;
@@ -1331,6 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             streak: 0,
             maxStreak: 0,
             logs: {},
+            timerSessions: [],
             createdAt: new Date().toISOString()
           };
 
@@ -1430,9 +1681,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modal close triggers
     document.querySelectorAll('.modal-close').forEach(btn => {
       btn.addEventListener('click', () => {
-        closeModal('habit-modal');
-        closeModal('goal-modal');
-        closeModal('auth-modal');
+        const overlay = btn.closest('.modal-overlay');
+        if (overlay?.id) closeModal(overlay.id);
       });
     });
 
@@ -1445,6 +1695,21 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    const confirmApproveBtn = document.getElementById('confirm-approve-btn');
+    if (confirmApproveBtn) {
+      confirmApproveBtn.addEventListener('click', () => {
+        resolveConfirm(true);
+        closeModal('confirm-modal');
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (activeModal?.id) closeModal(activeModal.id);
+      }
+    });
+
     // 4. Profile Settings Form
     const profileForm = document.getElementById('profile-form');
     if (profileForm) {
@@ -1454,7 +1719,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appData.profile.title = document.getElementById('profile-title-input').value.trim() || 'Growth';
         
         saveAndSync();
-        alert('Profile saved successfully!');
+        showToast('Profile saved successfully.', 'success');
         renderDashboard();
       });
     }
@@ -1467,21 +1732,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const jsonStr = document.getElementById('firebase-config-input').value.trim();
         const result = window.AscendStorage.saveFirebaseConfig(jsonStr);
         if (result.success) {
-          alert(result.message);
-          window.location.reload(); // Reload page to reinitialize Firebase with new config
+          showToast(result.message, 'success', { duration: 1200 });
+          setTimeout(() => window.location.reload(), 700);
         } else {
-          alert(result.error);
+          showToast(result.error, 'error', { duration: 5200 });
         }
       });
     }
 
     const clearFbBtn = document.getElementById('clear-firebase-btn');
     if (clearFbBtn) {
-      clearFbBtn.addEventListener('click', () => {
-        if (confirm('Disconnect Firebase cloud sync? You will return to Guest offline mode.')) {
+      clearFbBtn.addEventListener('click', async () => {
+        const approved = await confirmAction({
+          title: 'Disconnect Firebase?',
+          message: 'Disconnect Firebase cloud sync? You will return to Guest offline mode.',
+          confirmText: 'Disconnect'
+        });
+        if (approved) {
           window.AscendStorage.saveFirebaseConfig('');
-          alert('Firebase disconnected. Reloading...');
-          window.location.reload();
+          showToast('Firebase disconnected. Reloading...', 'success', { duration: 1200 });
+          setTimeout(() => window.location.reload(), 700);
         }
       });
     }
@@ -1495,10 +1765,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
-        if (confirm('Log out from your Cloud Sync Account?')) {
+        const approved = await confirmAction({
+          title: 'Log out?',
+          message: 'Log out from your Cloud Sync Account?',
+          confirmText: 'Log out'
+        });
+        if (approved) {
           await window.AscendStorage.logout();
-          alert('Logged out! Returning to local guest database.');
-          window.location.reload();
+          showToast('Logged out. Returning to local guest database.', 'success', { duration: 1200 });
+          setTimeout(() => window.location.reload(), 700);
         }
       });
     }
@@ -1559,11 +1834,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await navigator.clipboard.writeText(output.value);
           copyApiTokenBtn.textContent = 'Copied!';
+          showToast('Temporary API token copied.', 'success');
           setTimeout(() => { copyApiTokenBtn.textContent = 'Copy API Token'; }, 1200);
         } catch (err) {
           output.select();
           document.execCommand('copy');
           copyApiTokenBtn.textContent = 'Copied!';
+          showToast('Temporary API token copied.', 'success');
           setTimeout(() => { copyApiTokenBtn.textContent = 'Copy API Token'; }, 1200);
         }
       });
@@ -1580,9 +1857,9 @@ document.addEventListener('DOMContentLoaded', () => {
         syncNowBtn.disabled = false;
         syncNowBtn.textContent = 'Sync Data Now';
         if (res.success) {
-          alert('Successfully synced with your Firebase Firestore cloud account!');
+          showToast('Successfully synced with your Firebase Firestore cloud account!', 'success');
         } else {
-          alert('Sync failed: ' + res.error);
+          showToast('Sync failed: ' + res.error, 'error', { duration: 5200 });
         }
       });
     }
@@ -1604,14 +1881,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           if (authMode === 'signin') {
             await window.AscendStorage.loginEmail(email, password);
-            alert('Welcome back! Successfully logged in.');
+            showToast('Welcome back! Successfully logged in.', 'success');
           } else {
             await window.AscendStorage.registerEmail(email, password);
-            alert('Welcome! Your account has been registered successfully.');
+            showToast('Welcome! Your account has been registered successfully.', 'success');
           }
           closeModal('auth-modal');
         } catch (err) {
-          alert('Authentication Error: ' + err.message);
+          showToast('Authentication error: ' + err.message, 'error', { duration: 5200 });
         } finally {
           submitBtn.disabled = false;
           submitBtn.textContent = authMode === 'signin' ? 'Sign In' : 'Register';
@@ -1632,6 +1909,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
         window.AscendStorage.exportToFile(appData);
+        showToast('Backup export started.', 'success');
       });
     }
 
@@ -1646,11 +1924,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const result = window.AscendStorage.importFromString(event.target.result);
           if (result.success) {
             appData = result.data;
-            alert('Backup data successfully imported!');
+            showToast('Backup data successfully imported!', 'success');
             updateAllStreaks();
             navigate('dashboard');
           } else {
-            alert(`Import failed: ${result.error}`);
+            showToast(`Import failed: ${result.error}`, 'error', { duration: 5200 });
           }
         };
         reader.readAsText(file);
