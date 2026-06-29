@@ -478,6 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="habit-title-area">
             <span class="habit-category">${habit.category || 'Personal'}</span>
             <span class="habit-card-title">${habit.name}</span>
+            ${habit.linkedGoalId && getGoalTitle(habit.linkedGoalId) ? `<span class="linked-goal-label">Linked Goal: ${getGoalTitle(habit.linkedGoalId)}</span>` : ''}
           </div>
           <div class="habit-actions">
             <button class="btn btn-secondary edit-btn" title="Edit Habit" data-id="${habit.id}">
@@ -571,6 +572,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const today = getTodayStr();
       const isOverdue = goal.targetDate < today && goal.status !== 'completed';
+      const linkedHabits = appData.habits.filter(h => h.linkedGoalId === goal.id);
+      const linkedHabitsHtml = linkedHabits.length > 0
+        ? linkedHabits.map(h => {
+            const doneToday = h.logs && h.logs[today];
+            return `<div class="linked-routine-item ${doneToday ? 'completed' : ''}">
+              <span>${doneToday ? '✅' : '⬜'} ${h.name}</span>
+              <span>${h.streak || 0}d streak</span>
+            </div>`;
+          }).join('')
+        : '<div class="linked-routine-empty">No linked routines yet</div>';
 
       let milestonesHtml = '';
       milestones.forEach(m => {
@@ -612,6 +623,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="progress-bar-bg">
             <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
           </div>
+        </div>
+
+        <div class="linked-routines-section">
+          <div class="linked-routines-title">Routines</div>
+          ${linkedHabitsHtml}
         </div>
 
         <div class="goal-milestones-list">
@@ -855,10 +871,26 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;');
   }
 
+  function getGoalTitle(goalId) {
+    const goal = appData.goals.find(g => g.id === goalId);
+    return goal ? goal.title : '';
+  }
+
+  function populateHabitGoalSelect(selectedGoalId = '') {
+    const select = document.getElementById('habit-goal-link-input');
+    if (!select) return;
+    const options = ['<option value="">No linked goal</option>'].concat(
+      appData.goals.map(goal => `<option value="${escapeAttribute(goal.id)}">${escapeAttribute(goal.title)}</option>`)
+    );
+    select.innerHTML = options.join('');
+    select.value = selectedGoalId || '';
+  }
+
   function resetHabitFormForCreate() {
     editingHabitId = null;
     const form = document.getElementById('habit-form');
     if (form) form.reset();
+    populateHabitGoalSelect('');
     setHabitModalMode('create');
   }
 
@@ -881,6 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editingHabitId = habitId;
     document.getElementById('habit-name-input').value = habit.name || '';
     document.getElementById('habit-category-input').value = habit.category || '';
+    populateHabitGoalSelect(habit.linkedGoalId || '');
     setHabitModalMode('edit');
     openModal('habit-modal');
   }
@@ -960,6 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const name = document.getElementById('habit-name-input').value;
         const category = document.getElementById('habit-category-input').value;
+        const linkedGoalId = document.getElementById('habit-goal-link-input').value;
         
         if (!name) return;
 
@@ -968,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!habit) return;
           habit.name = name;
           habit.category = category || 'Personal';
+          habit.linkedGoalId = linkedGoalId;
           habit.updatedAt = new Date().toISOString();
           editingHabitId = null;
         } else {
@@ -975,6 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: 'h_' + Date.now(),
             name: name,
             category: category || 'Personal',
+            linkedGoalId: linkedGoalId,
             streak: 0,
             maxStreak: 0,
             logs: {},

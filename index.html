@@ -15,7 +15,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   
-  <link rel="stylesheet" href="css/style.css?v=f7b755c-edit2">
+  <link rel="stylesheet" href="css/style.css?v=linked-goals-1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.1.0/font/lucide.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -398,6 +398,12 @@
           <label for="habit-category-input">Category</label>
           <input type="text" class="form-control" id="habit-category-input" placeholder="e.g. Mind, Health, Career, Routine">
         </div>
+        <div class="form-group">
+          <label for="habit-goal-link-input">Linked Goal</label>
+          <select class="form-control" id="habit-goal-link-input">
+            <option value="">No linked goal</option>
+          </select>
+        </div>
         <div style="display:flex; justify-content: flex-end; gap:12px; margin-top:28px;">
           <button type="button" class="btn btn-secondary modal-close">Cancel</button>
           <button type="submit" class="btn btn-primary">Create Habit</button>
@@ -486,9 +492,9 @@
   </div>
 
   <!-- --- JAVASCRIPT INJECTION --- -->
-  <script src="js/storage.js?v=f7b755c-edit2"></script>
-  <script src="js/analytics.js?v=f7b755c-edit2"></script>
-  <script src="js/api-token.js?v=f7b755c-edit2"></script>
-  <script src="js/app.js?v=f7b755c-edit2"></script>
+  <script src="js/storage.js?v=linked-goals-1"></script>
+  <script src="js/analytics.js?v=linked-goals-1"></script>
+  <script src="js/api-token.js?v=linked-goals-1"></script>
+  <script src="js/app.js?v=linked-goals-1"></script>
 </body>
 </html>
