@@ -1015,6 +1015,72 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    const generateApiTokenBtn = document.getElementById('generate-api-token-btn');
+    if (generateApiTokenBtn) {
+      generateApiTokenBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('firestore-sync-status');
+        const panel = document.getElementById('api-token-panel');
+        const output = document.getElementById('api-token-output');
+        const user = firebase.auth().currentUser;
+
+        if (!user) {
+          if (statusEl) {
+            statusEl.className = 'sync-status error';
+            statusEl.textContent = 'Please sign in before generating an API token.';
+          }
+          return;
+        }
+
+        generateApiTokenBtn.disabled = true;
+        generateApiTokenBtn.textContent = 'Generating...';
+
+        try {
+          const firebaseConfig = JSON.parse(window.AscendStorage.getFirebaseConfig());
+          const idToken = await user.getIdToken(true);
+          const payload = window.AscendApiToken.buildTemporaryApiTokenPayload({
+            uid: user.uid,
+            email: user.email,
+            idToken,
+            projectId: firebaseConfig.projectId
+          });
+
+          output.value = window.AscendApiToken.formatTemporaryApiTokenForCopy(payload);
+          panel.style.display = 'block';
+          if (statusEl) {
+            statusEl.className = 'sync-status success';
+            statusEl.textContent = `✓ Temporary API token generated. Expires at ${new Date(payload.expiresAt).toLocaleTimeString()}.`;
+          }
+        } catch (err) {
+          if (statusEl) {
+            statusEl.className = 'sync-status error';
+            statusEl.textContent = `✗ API token generation failed: ${err.message}`;
+          }
+        } finally {
+          generateApiTokenBtn.disabled = false;
+          generateApiTokenBtn.textContent = 'Generate API Token';
+        }
+      });
+    }
+
+    const copyApiTokenBtn = document.getElementById('copy-api-token-btn');
+    if (copyApiTokenBtn) {
+      copyApiTokenBtn.addEventListener('click', async () => {
+        const output = document.getElementById('api-token-output');
+        if (!output || !output.value) return;
+
+        try {
+          await navigator.clipboard.writeText(output.value);
+          copyApiTokenBtn.textContent = 'Copied!';
+          setTimeout(() => { copyApiTokenBtn.textContent = 'Copy API Token'; }, 1200);
+        } catch (err) {
+          output.select();
+          document.execCommand('copy');
+          copyApiTokenBtn.textContent = 'Copied!';
+          setTimeout(() => { copyApiTokenBtn.textContent = 'Copy API Token'; }, 1200);
+        }
+      });
+    }
+
     const syncNowBtn = document.getElementById('sync-firestore-now-btn');
     if (syncNowBtn) {
       syncNowBtn.addEventListener('click', async () => {
